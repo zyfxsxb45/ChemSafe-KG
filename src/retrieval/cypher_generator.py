@@ -1,0 +1,62 @@
+"""
+Cypher 查询语句生成模块
+
+根据查询分析结果，动态生成 Cypher 查询语句。
+"""
+import logging
+from typing import Dict, List
+
+logger = logging.getLogger(__name__)
+
+
+class CypherGenerator:
+    """Cypher 查询生成器"""
+
+    def generate(self, query_analysis: Dict) -> str:
+        """
+        根据查询分析结果生成 Cypher 语句。
+
+        Args:
+            query_analysis: QueryAnalyzer 的输出
+
+        Returns:
+            Cypher 查询语句
+
+        TODO [完善]:
+          1. 不同类型查询的模板化生成
+          2. 路径长度自适应
+          3. 查询参数化防注入
+        """
+        intent = query_analysis.get("intent")
+        entities = query_analysis.get("entities", [])
+
+        if intent == "causal_chain" and entities:
+            return self._causal_chain_query(entities[0])
+
+        # 默认兜底: 全图检索
+        return self._fallback_query(entities)
+
+    def _causal_chain_query(self, entity_name: str, max_depth: int = 4) -> str:
+        """生成因果链查询"""
+        return f"""
+        MATCH path = (start {{name: '{entity_name}'}})
+                      -[:leads_to*1..{max_depth}]->(end:Consequence)
+        RETURN path
+        LIMIT 10
+        """
+
+    def _mitigation_query(self, entity_name: str) -> str:
+        """生成缓解措施查询"""
+        # TODO: 查询从某实体出发可用的缓解措施
+        return ""
+
+    def _statistics_query(self, constraints: Dict) -> str:
+        """生成统计分析查询"""
+        # TODO: 多维度聚合统计
+        return ""
+
+    def _fallback_query(self, entities: List[str]) -> str:
+        """兜底查询"""
+        if entities:
+            return f"MATCH (n) WHERE n.name CONTAINS '{entities[0]}' RETURN n LIMIT 20"
+        return "MATCH (n) RETURN n LIMIT 50"

@@ -1,0 +1,53 @@
+# =============================================================================
+# ChemSafe-KG: 化工安全事故知识图谱系统 — 依赖清单
+# =============================================================================
+# 安装方式: pip install -r requirements.txt
+
+# ── 数据处理与基础库 ──
+pandas>=2.0.0
+numpy>=1.24.0
+python-dotenv>=1.0.0
+
+# ── 网络爬虫与数据采集 ──
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+pdfplumber>=0.10.0
+# 化学品API (PubChem, 无需 API Key)
+pubchempy>=1.0.4
+
+# ── 文本处理 ──
+jieba>=0.42.1
+regex>=2023.0.0
+
+# ── LLM API ──
+openai>=1.0.0             # 兼容 DeepSeek API (OpenAI 协议)
+# SDK 方式调用 DeepSeek (可选)
+# deepseek-sdk>=1.0.0
+
+# ── 数据库 ──
+py2neo>=2021.2.0          # Neo4j 图数据库驱动
+psycopg2-binary>=2.9.0    # PostgreSQL 驱动 (生产环境)
+sqlalchemy>=2.0.0         # SQL ORM 框架
+
+# ── Graph RAG / LangChain ──
+langchain>=0.1.0
+langchain-community>=0.0.10
+
+# ── 前端展示 (Streamlit) ──
+streamlit>=1.28.0
+streamlit-agraph>=0.0.45  # 知识图谱可视化组件 (vis.js封装)
+plotly>=5.18.0
+matplotlib>=3.7.0
+
+# ── OCR (扫描PDF处理, 可选) ──
+# pip install paddlepaddle paddleocr  # PaddleOCR (中文OCR推荐)
+# pip install pytesseract             # Tesseract OCR 封装
+# pip install pdf2image               # PDF→图片 (OCR预处理)
+# 注意: PaddleOCR 和 Tesseract 需要额外安装底层引擎
+
+# ── 开发与测试 ──
+pytest>=7.4.0
+pytest-cov>=4.1.0
+# 用于运行 Jupyter Notebook 进行 EDA
+jupyter>=1.0.0

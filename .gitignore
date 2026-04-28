@@ -1,0 +1,46 @@
+# =============================================================================
+# ChemSafe-KG .gitignore
+# =============================================================================
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# ── 环境变量 ──
+.env
+
+# ── 数据文件 ──
+data/raw/**
+data/processed/**
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+data/external/**
+!data/external/.gitkeep
+
+# ── 数据库文件 ──
+*.db
+*.sqlite3
+
+# ── IDE ──
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+
+# ── 日志 ──
+*.log
+logs/
+
+# ── Notebook 临时输出 ──
+.ipynb_checkpoints/
