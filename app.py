@@ -56,16 +56,25 @@ def process_question(question, neo4j, retriever, qa):
     import jieba
     entities = neo4j.get_all_entity_names()
 
-    # 实体匹配（按关键词命中数排序）
+    # 实体匹配（按关键词命中数排序，同分时优先有因果路径的实体）
     words = [w for w in jieba.lcut(question) if len(w) >= 2]
     scored = [(e, sum(1 for w in words if w in e)) for e in entities]
     scored = [(e, s) for e, s in scored if s > 0]
     scored.sort(key=lambda x: -x[1])
 
     if not scored:
-        return "未在知识图谱中找到与问题相关的实体。请先运行演示脚本 `python scripts/run_demo_pipeline.py` 构建图谱。", None
+        return "未在知识图谱中找到与问题相关的实体。", None
 
-    matched_entity = scored[0][0]
+    # 在同分实体中，优先选有因果路径的（避免选到孤立节点）
+    top_score = scored[0][1]
+    candidates = [e for e, s in scored if s == top_score]
+    matched_entity = candidates[0]
+    for entity in candidates:
+        test_paths = neo4j.find_causal_paths(entity, max_depth=2)
+        if test_paths:
+            matched_entity = entity
+            break
+
     paths = retriever.retrieve(matched_entity, max_depth=5)
     context = retriever.format_context(paths)
     answer = qa.generate(question, context)
