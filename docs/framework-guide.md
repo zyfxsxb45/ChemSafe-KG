@@ -1,8 +1,8 @@
 # ChemSafe-KG 项目框架说明文档
 
 > **项目**：ChemSafe-KG：基于大模型驱动的化工安全事故知识图谱构建与因果推理问答系统  
-> **框架版本**：v0.3.0（端到端流水线已验证）  
-> **编写时间**：2026-04-28
+> **框架版本**：v0.4.0（数据采集模块完成，支持批量 KG 构建）  
+> **编写时间**：2026-05-18
 
 ---
 
@@ -110,7 +110,9 @@ ChemSafe-KG/
 │   ├── init_db.py                  # 数据库初始化
 │   ├── seed_data.py                # 种子数据插入（含 LLM 抽取入库）
 │   ├── run_demo_pipeline.py        # ★ 端到端演示流水线（核心）
-│   └── run_extraction_pipeline.py  # 知识抽取流水线
+│   ├── run_extraction_pipeline.py  # ★ 批量知识抽取流水线（已实现）
+│   ├── init_db.py                  # 数据库初始化
+│   └── seed_data.py                # 种子数据插入（含 LLM 抽取入库）
 │
 ├── data/                           # 数据目录
 │   ├── raw/                        #   原始数据（.gitkeep 占位）
@@ -133,23 +135,30 @@ ChemSafe-KG/
 
 **职责**：从多源获取原始数据，清洗并融合为结构化格式。
 
-#### 已有骨架
+#### 当前实现
 
-| 模块 | 文件 | 说明 |
-|------|------|------|
-| 事故报告爬虫 | `report_crawler.py` | `ReportCrawler` 类，定义了爬取框架和数据源配置 |
-| 化学品API | `chemical_api.py` | `ChemicalPropertyFetcher` 类，定义了 10 种目标化学品清单 |
-| 气象数据 | `weather_fetcher.py` | `WeatherDataFetcher` 类，天气数据结构定义 |
-| PDF解析 | `pdf_parser.py` | `PDFParser` 类，PDF→纯文本接口 |
-| 文本清洗 | `text_cleaner.py` | `TextCleaner` 类，空白规范化、标点标准化、分块 |
-| 数据融合 | `data_merger.py` | `DataMerger` 类，事故-化学品-天气关联接口 |
+| 模块 | 文件 | 实现状态 | 说明 |
+|------|------|---------|------|
+| 事故报告爬虫 | `report_crawler.py` | ✅ **已实现** | `fetch_report_list()` 支持 mem.gov.cn 历史上危化品事故栏目，94 个月度汇编页，2000+ 起事故；CSB 列表页基础解析 |
+| 化学品API | `chemical_api.py` | ✅ 已实现 | `ChemicalPropertyFetcher`，20 种危化品，PubChem PUG REST API（无需 Key），含 CAS 号查询 |
+| 气象数据 | `weather_fetcher.py` | ✅ 已实现 | `WeatherDataFetcher`，Open-Meteo API（免费，无需 Key），含中文地点坐标映射 |
+| PDF解析 | `pdf_parser.py` | ❌ 待填充 | pdfplumber 集成待实现，扫描 PDF 需 OCR |
+| 文本清洗 | `text_cleaner.py` | ⏳ 骨架 | 空白规范化和分块已完成，页眉页脚去除和脱敏待补充 |
+| 数据融合 | `data_merger.py` | ⏳ 骨架 | 接口定义完成，融合逻辑待实现 |
 
-#### TODO 清单（更新于 v0.1.1）
+#### TODO 清单（更新于 v0.4.0）
 
-- [x] **补充爬虫数据源 URL**（已填入）：
-  - P0: `https://ciedu.com.cn` — 化工安全教育平台（推荐优先采集）
-  - P1: `https://www.mem.gov.cn` — 应急管理部警示信息/政府信息公开
-  - P2: `https://www.csb.gov` — CSB 调查报告 + Incident Reports
+爬虫模块 ✅ 已实现：
+- [x] **实现 mem.gov.cn 列表页解析**：5 页列表页，94 条月度汇编链接
+- [x] **实现月度详情页事故提取**：逐段扫描 `<div class="cont">`，用特征区分章节/分类/事故标题，提取独立事故及其根因分析
+- [x] **实现 URL 正确拼接**：使用 `urljoin()` 处理相对路径 `../202604/...`
+- [x] **实现批量限制**：`max_accidents` 参数控制提取量，达到目标提前停止
+- [x] **实现 CSB 列表页解析**：CSS 选择器匹配调查卡片（requests 降级）
+- [x] **实现文件保存**：自动去除元信息头部，保存为 UTF-8 编码的 .txt 文件
+- [x] **实现批量抽取流水线**：`scripts/run_extraction_pipeline.py` 支持目录批量 → LLM 抽取 → Neo4j 入库
+
+仍待完成：
+- [ ] **实现爬虫页面解析**：`report_crawler.py` 中其他数据源（ciedu.com.cn 502 不可达，ichemsafe.com 需登录）
   - P2: `https://www.ichemsafe.com` — ChemSafe 事故案例库
   - P2: `https://www.ntsb.gov` — NTSB 事故调查
   - P2: `https://emars.jrc.ec.europa.eu` — eMARS 欧盟事故数据库
@@ -372,7 +381,7 @@ pipeline.py
 
 | 编号 | 待办项 | 涉及文件 | 预估工作量 |
 |------|--------|---------|-----------|
-| 7 | 实现爬虫页面解析 | `src/acquisition/report_crawler.py` | 2-3小时 |
+| 7 | 实现爬虫页面解析 | `src/acquisition/report_crawler.py` | ✅ 已完成（mem.gov.cn 94页，2000+事故） |
 | 8 | 实现 PDF 文本提取 | `src/preprocessing/pdf_parser.py` | 1-2小时 |
 | 9 | 实现 LLM 实体抽取 | `src/extraction/entity_extractor.py` | ✅ 已完成（样本验证通过） |
 | 10 | 实现三元组→Neo4j写入 | `src/storage/neo4j_client.py` | ✅ 已完成（MERGE写入） |
@@ -411,9 +420,9 @@ pipeline.py
 
 | 优先级 | 资源名称 | URL | 说明 |
 |--------|---------|-----|------|
-| **P0** | 化工安全教育平台 - 事故案例 | `https://ciedu.com.cn` → 应急管理/安全生产事故案例频道 | ✅ URL已填入代码，爬虫逻辑待实现 |
-| **P1** | 中国化学品安全协会 - 事故案例库 | `https://www.chemicalsafety.org.cn/shiguxinxi/shiguanli` | ✅ URL已填入（新增） |
-| P1 | 应急管理部 - 历史上的危化品事故 | `https://www.mem.gov.cn` → 警示信息栏目 | ✅ URL已填入 |
+| **P0** | 化工安全教育平台 - 事故案例 | `https://ciedu.com.cn` | ❌ 网站502不可达 |
+| **P1** | 应急管理部 - 历史上的危化品事故 | `https://www.mem.gov.cn/fw/jsxx/lssdwhpsg/` | ✅ **已实现** — 94个月度页，每页17-41起事故 |
+| P1 | 中国化学品安全协会 - 事故案例库 | `https://www.chemicalsafety.org.cn/shiguxinxi/shiguanli` | ⏳ URL已填入，解析待实现 |
 | P1 | 应急管理部 - 政府信息公开 | `http://www.mem.gov.cn` | ✅ URL已填入 |
 | P2 | CSB 调查报告 | `https://www.csb.gov/investigations/` | ✅ URL已填入 |
 | P2 | CSB Incident Reports | `https://www.csb.gov/incident-reports/` | ✅ URL已填入 |
@@ -421,7 +430,11 @@ pipeline.py
 | P2 | NTSB 事故调查 | `https://www.ntsb.gov` | ✅ URL已填入 |
 | P2 | eMARS 欧盟事故数据库 | `https://emars.jrc.ec.europa.eu` | ✅ URL已填入 |
 
-**推荐策略**：优先集中获取 `ciedu.com.cn` 事故报告全文。参考数据：409 份报告可构建 9,192 个节点；198 份报告可构建 1,637 个节点。采集 100-150 份即可构建有意义的 KG。
+**当前策略**：`ciedu.com.cn` 502 不可达，替代为主数据源 `mem.gov.cn` 历史上的危化品事故栏目。
+- 94 个月度汇编页面（2018 ~ 2026年）
+- 每页 17~41 起事故，含完整根因分析
+- 采集 100~150 起事故即可构建有意义的 KG（约需 4~6 个月度页）
+- 合计约 2000+ 起事故覆盖国内外各类化工事故类型
 
 #### 🟢 化学品物性数据库
 
@@ -543,6 +556,8 @@ python -c "from py2neo import Graph; g=Graph('bolt://localhost:7687',auth=('neo4
 - ✅ **配置体系**：分层配置，支持 `.env` 环境管理
 - ✅ **数据模型**：图 Schema 和关系表模型已设计
 - ✅ **流水线编排**：`pipeline.py` 支持分阶段执行
+- ✅ **爬虫模块**：`report_crawler.py` mem.gov.cn 解析器已实现（94个月度页，2000+事故）
+- ✅ **批量抽取流水线**：`scripts/run_extraction_pipeline.py` 已完成，支持.txt→LLM→Neo4j
 - ✅ **数据源URL**：9 个事故数据源 URL 已填入代码
 - ✅ **PubChem API**：`chemical_api.py` 已实现真实调用（无需 Key）
 - ✅ **气象数据**：`weather_fetcher.py` 已集成 Open-Meteo（免费，无需 Key）
@@ -553,8 +568,8 @@ python -c "from py2neo import Graph; g=Graph('bolt://localhost:7687',auth=('neo4
 - ✅ **上下文格式化**：`format_context()` 可将路径转换为结构化文本
 - ✅ **端到端流水线**：`scripts/run_demo_pipeline.py` 已验证通过
 - ✅ **Streamlit 问答**：`app.py` 可实时查询 Neo4j 并生成回答
-- ⏳ **爬虫页面解析**：`report_crawler.fetch_report_list()` 待填充
-- ❌ **真实事故数据**：尚未采集，仅有 2 条 LLM 抽取的样本数据
+- ⏳ **PDF 解析**：`pdf_parser.py` 待集成 pdfplumber
+- ❌ **其他数据源爬虫**：ciedu.com.cn(502)、ichemsafe.com(需登录) 待实现
 
 ### 7.2 关键风险
 
@@ -562,14 +577,14 @@ python -c "from py2neo import Graph; g=Graph('bolt://localhost:7687',auth=('neo4
 |------|------|------|
 | LLM API 调用费用 | 可能需要预算 | ✅ 已配置，控制调用量（先小批量测试） |
 | Neo4j 环境配置 | 开发初期阻塞 | ✅ 已解决，5.26.25 已运行 |
-| 爬虫数据源不可用 | 核心数据缺失 | 准备手工下载 + 学术文献数据备用 |
+| 爬虫数据源不可用 | 核心数据缺失 | mem.gov.cn 已解决，主数据源可用 |
 | LLM 抽取质量低 | KG 质量不达标 | Prompt 迭代 + 人工抽样验证（当前样本验证通过） |
 
 ### 7.3 推荐的开发顺序
 
-1. **第9-10周（已部分完成）**：环境配置 ✅ | 数据源URL配置 ✅ | 爬虫逻辑待实现
-2. **第11周**：实现爬虫页面解析 → 获取 PDF 报告 → PDF→纯文本提取
-3. **第12-13周（已完成框架）**：LLM 抽取流水线 ✅ | Neo4j 入库 ✅ | 质量评估待完善
+1. **第9-10周（已完成）**：环境配置 ✅ | 数据源URL配置 ✅ | 爬虫实现 ✅
+2. **第11周**：实现 PDF 解析 → 爬取更多数据 → EDA
+3. **第12-13周（已完成）**：LLM 抽取流水线 ✅ | Neo4j 入库 ✅ | 批量抽取脚本 ✅
 4. **第14周（已完成框架）**：Graph RAG 检索 ✅ | 问答生成 ✅ | 前端串联 ✅
 5. **第15周**：爬虫采集真实数据 → 扩充 KG → 可视化优化 → 演示准备
 6. **第16周**：报告撰写 → 代码整理 → 部署配置

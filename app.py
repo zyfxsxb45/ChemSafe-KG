@@ -101,7 +101,7 @@ page = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.caption("ChemSafe-KG v0.3.0 · 数据库技术及应用课程项目")
+st.sidebar.caption("ChemSafe-KG v0.4.0 · 数据库技术及应用课程项目")
 
 # ─── 页面路由 ─────────────────────────────────────────────────────────────
 if page == ":material/home: 系统概览":
