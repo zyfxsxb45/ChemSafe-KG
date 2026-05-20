@@ -6,6 +6,7 @@
 import json
 import logging
 from typing import List, Dict, Optional
+from config.settings import extraction as extraction_config
 from src.extraction.llm_client import LLMClient
 from src.extraction.prompt_templates import PromptTemplates
 
@@ -82,23 +83,59 @@ class EntityExtractor:
         """
         将抽取结果转换为 (subject, relation, object) 三元组格式。
 
-        TODO [完善]:
-          1. 正确处理 event_chain 中的实体和关系交替
-          2. 为每个实体添加类型标签
-          3. 去重逻辑
+        支持两类常见 LLM 输出:
+          1. {"entity": "A"} 后跟 {"relation": "leads_to", "target": "B"}
+          2. {"source": "A", "relation": "leads_to", "target": "B"}
+
+        会过滤字段缺失、未知关系类型和自环，并保持原始顺序去重。
         """
+        valid_relations = set(extraction_config.RELATION_TYPES)
         triples = []
+        seen = set()
         chain = extraction_result.get("event_chain", [])
         current_entity = None
 
+        if not isinstance(chain, list):
+            logger.warning("抽取结果 event_chain 不是列表，无法转换三元组")
+            return []
+
+        def normalize_text(value) -> str:
+            if value is None:
+                return ""
+            return str(value).strip()
+
+        def add_triple(subject, relation, target):
+            subject = normalize_text(subject)
+            relation = normalize_text(relation)
+            target = normalize_text(target)
+
+            if not subject or not relation or not target:
+                return
+            if relation not in valid_relations:
+                logger.debug(f"跳过未知关系类型: {relation}")
+                return
+            if subject == target:
+                logger.debug(f"跳过自环三元组: {subject} -[{relation}]-> {target}")
+                return
+
+            key = (subject, relation, target)
+            if key in seen:
+                return
+            seen.add(key)
+            triples.append(key)
+
         for item in chain:
+            if not isinstance(item, dict):
+                continue
+
             if "entity" in item:
-                current_entity = item["entity"]
-            elif "relation" in item and current_entity:
-                triples.append((
-                    current_entity,
-                    item["relation"],
-                    item["target"],
-                ))
+                current_entity = normalize_text(item.get("entity"))
+
+            if "relation" not in item:
+                continue
+
+            subject = item.get("source") or item.get("subject") or current_entity
+            target = item.get("target") or item.get("object")
+            add_triple(subject, item.get("relation"), target)
 
         return triples

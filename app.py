@@ -54,50 +54,63 @@ def get_graph_stats(neo4j):
 # 处理问答
 def process_question(question, neo4j, retriever, qa):
     import jieba
-    entities = neo4j.get_all_entity_names()
+    from src.retrieval.query_analyzer import QueryAnalyzer
+    from src.retrieval.entity_linker import EntityLinker
 
-    # 实体匹配（按关键词命中数排序，同分时优先有因果路径的实体）
+    entities = neo4j.get_all_entity_names()
+    analyzer = QueryAnalyzer()
+    linker = EntityLinker()
+    analyzed = analyzer.analyze(question)
+
+    linked = linker.link_entities(analyzed.get("entities", []), neo4j)
+    matched_names = [item["name"] for item in linked if item.get("matched")]
+
+    # 降级匹配（按关键词命中数排序，同分时优先有因果路径的实体）
     words = [w for w in jieba.lcut(question) if len(w) >= 2]
     scored = [(e, sum(1 for w in words if w in str(e))) for e in entities]
     scored = [(e, s) for e, s in scored if s > 0]
     scored.sort(key=lambda x: -x[1])
 
-    if not scored:
-        return "未在知识图谱中找到与问题相关的实体。请尝试提取更准确的关键词。", None
+    if not matched_names and not scored:
+        return "未在知识图谱中找到与问题相关的实体。", None
 
-    # 取 Top 5 匹配的实体，综合检索它们的因果路径
-    top_entities = [e for e, s in scored[:5]]
-    
+    # 取实体链接结果 + 关键词 Top 5，综合检索它们的因果路径
+    top_entities = []
+    for entity in matched_names:
+        if entity not in top_entities:
+            top_entities.append(entity)
+    for entity, _score in scored[:5]:
+        if entity not in top_entities:
+            top_entities.append(entity)
+
     all_paths = []
-    for entity in top_entities:
-        # 向前向后各扩展最多 3 步 (总长可达 6 步)
+    for entity in top_entities[:8]:
         paths = retriever.retrieve(entity, max_depth=3)
         all_paths.extend(paths)
-        
+
     # 按路径长度降序排序，优先处理长逻辑链
     all_paths.sort(key=lambda x: len(x.get("node_names", [])), reverse=True)
-    
+
     # 路径去重与子路径过滤 (去除被长路径完全包含的短路径)
     unique_paths = []
     for p in all_paths:
         p_nodes = p.get("node_names", [])
         if not p_nodes:
             continue
-            
-        # 检查是否是已有长路径的子序列
+
         is_subpath = False
         for up in unique_paths:
             up_nodes = up.get("node_names", [])
             for i in range(len(up_nodes) - len(p_nodes) + 1):
-                if up_nodes[i:i+len(p_nodes)] == p_nodes:
+                if up_nodes[i:i + len(p_nodes)] == p_nodes:
                     is_subpath = True
                     break
             if is_subpath:
                 break
-                
+
         if not is_subpath:
             unique_paths.append(p)
-    
+
     context = retriever.format_context(unique_paths[:15])
     answer = qa.generate(question, context)
     return answer, context
@@ -263,43 +276,37 @@ elif page == ":material/hub: 知识图谱浏览":
         with st.spinner("正在加载图谱数据..."):
             try:
                 from streamlit_agraph import agraph, Node, Edge, Config
+                from src.visualization.kg_visualizer import KGFrontendVisualizer
                 
-                # 获取图谱数据 (限制 200 条关系以保证前端性能)
-                query = "MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 200"
-                data = neo4j.graph.run(query).data()
-                
-                nodes = []
-                edges = []
-                seen_nodes = set()
-                
-                color_map = {
-                    "Equipment": "#4CAF50",
-                    "Material": "#2196F3",
-                    "Abnormal_Condition": "#FF9800",
-                    "Consequence": "#F44336",
-                    "Mitigation": "#9C27B0",
-                }
-                
-                for row in data:
-                    n = row['n']
-                    m = row['m']
-                    r = row['r']
-                    
-                    n_id = n['name']
-                    n_label = list(n.labels)[0] if n.labels else "Unknown"
-                    
-                    m_id = m['name']
-                    m_label = list(m.labels)[0] if m.labels else "Unknown"
-                    
-                    if n_id not in seen_nodes:
-                        nodes.append(Node(id=n_id, label=n_id, size=25, color=color_map.get(n_label, "#999")))
-                        seen_nodes.add(n_id)
-                        
-                    if m_id not in seen_nodes:
-                        nodes.append(Node(id=m_id, label=m_id, size=25, color=color_map.get(m_label, "#999")))
-                        seen_nodes.add(m_id)
-                        
-                    edges.append(Edge(source=n_id, target=m_id, label=type(r).__name__))
+                limit = st.slider(
+                    "显示节点上限",
+                    min_value=20,
+                    max_value=300,
+                    value=min(max(stats["nodes"], 20), 120),
+                    step=20,
+                )
+                graph_data = neo4j.get_graph_snapshot(limit=limit)
+                visualizer = KGFrontendVisualizer()
+                vis_data = visualizer.prepare_vis_data(graph_data["nodes"], graph_data["edges"])
+
+                nodes = [
+                    Node(
+                        id=node["id"],
+                        label=node["label"],
+                        title=node.get("title", node["label"]),
+                        size=25,
+                        color=node.get("color", "#999"),
+                    )
+                    for node in vis_data["nodes"]
+                ]
+                edges = [
+                    Edge(
+                        source=edge["from"],
+                        target=edge["to"],
+                        label=edge.get("label", ""),
+                    )
+                    for edge in vis_data["edges"]
+                ]
                     
                 config = Config(
                     width="100%",
@@ -313,6 +320,7 @@ elif page == ":material/hub: 知识图谱浏览":
                 )
                 
                 agraph(nodes=nodes, edges=edges, config=config)
+                st.caption(f"当前展示 {len(nodes)} 个节点 / {len(edges)} 条关系")
                 
                 with st.expander("图例与说明", expanded=False):
                     st.markdown("""
@@ -325,6 +333,10 @@ elif page == ":material/hub: 知识图谱浏览":
                     
                     *提示: 可以拖拽节点、缩放画布。点击节点可高亮相关连接。*
                     """, unsafe_allow_html=True)
+
+                with st.expander("全部节点列表", expanded=False):
+                    for e in stats["entities"]:
+                        st.markdown(f"- {e}")
                     
             except Exception as e:
                 st.error(f"图谱渲染失败: {e}")

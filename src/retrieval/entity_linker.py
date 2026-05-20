@@ -4,7 +4,7 @@
 将用户问题中识别的实体与知识图谱中的节点进行匹配对齐。
 """
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -29,36 +29,78 @@ class EntityLinker:
         Returns:
             [{"name": "...", "type": "...", "matched": True}, ...]
 
-        TODO [完善]:
-          1. 精确匹配 → 模糊匹配 → 同义词匹配 三级策略
-          2. 匹配结果的置信度评分
-          3. 未匹配实体的处理 (提交 LLM 补充识别)
+        匹配策略:
+          1. 精确匹配: n.name = query
+          2. 包含匹配: n.name CONTAINS query
+          3. 反向包含: query CONTAINS n.name
         """
         matched = []
         for name in entity_names:
-            # 在 Neo4j 中模糊查询节点
-            query = """
-            MATCH (n) 
-            WHERE n.name CONTAINS $name 
-            RETURN n.name AS name, labels(n)[0] AS type 
-            LIMIT 1
-            """
-            try:
-                result = neo4j_client.graph.run(query, name=name).data()
-                if result:
-                    matched.append({
-                        "name": result[0]["name"],
-                        "type": result[0]["type"],
-                        "matched": True,
-                        "original_query": name
-                    })
-                else:
-                    matched.append({
-                        "name": name,
-                        "type": "unknown",
-                        "matched": False,
-                    })
-            except Exception as e:
-                logger.error(f"实体链接查询失败: {e}")
-                matched.append({"name": name, "type": "unknown", "matched": False})
+            candidate = self._match_one(name, neo4j_client)
+            if candidate:
+                matched.append(candidate)
+            else:
+                matched.append({
+                    "query": name,
+                    "name": name,
+                    "type": "unknown",
+                    "matched": False,
+                    "confidence": 0.0,
+                    "match_type": "none",
+                })
         return matched
+
+    def _match_one(self, name: str, neo4j_client) -> Dict | None:
+        """Find the best graph node for one entity mention."""
+        cleaned = (name or "").strip()
+        if not cleaned or neo4j_client.graph is None:
+            return None
+
+        query = """
+        MATCH (n)
+        WHERE n.name = $name
+           OR n.name CONTAINS $name
+           OR $name CONTAINS n.name
+        WITH n,
+             CASE
+               WHEN n.name = $name THEN 3
+               WHEN n.name CONTAINS $name THEN 2
+               WHEN $name CONTAINS n.name THEN 1
+               ELSE 0
+             END AS score
+        RETURN n.name AS name,
+               labels(n)[0] AS type,
+               score
+        ORDER BY score DESC, size(n.name) ASC
+        LIMIT 1
+        """
+        try:
+            row = neo4j_client.graph.run(query, name=cleaned).data()
+        except Exception as e:
+            logger.warning(f"实体链接查询失败: {cleaned} -> {e}")
+            return None
+
+        if not row:
+            return None
+
+        result = row[0]
+        score = result.get("score", 0)
+        match_type = {
+            3: "exact",
+            2: "contains",
+            1: "reverse_contains",
+        }.get(score, "none")
+        confidence = {
+            3: 1.0,
+            2: 0.75,
+            1: 0.6,
+        }.get(score, 0.0)
+
+        return {
+            "query": cleaned,
+            "name": result.get("name", cleaned),
+            "type": result.get("type", "unknown"),
+            "matched": score > 0,
+            "confidence": confidence,
+            "match_type": match_type,
+        }

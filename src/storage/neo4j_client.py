@@ -7,10 +7,35 @@ Neo4j 版本: 5.26.25 (社区版)
 """
 import logging
 from typing import List, Dict, Optional
-from py2neo import Graph, Node, Relationship
+from py2neo import Graph, Node
 from config.settings import neo4j as neo4j_config
+from config.settings import extraction as extraction_config
+from src.storage.schema_manager import GraphSchema
 
 logger = logging.getLogger(__name__)
+
+
+ALLOWED_NODE_LABELS = set(GraphSchema.NODE_LABELS)
+ALLOWED_RELATION_TYPES = set(GraphSchema.RELATION_TYPES) | set(extraction_config.RELATION_TYPES)
+
+
+def _safe_label(label: str) -> str:
+    """Return a Neo4j label after checking it against the project schema."""
+    if label not in ALLOWED_NODE_LABELS:
+        return "Abnormal_Condition"
+    return label
+
+
+def _safe_relation_type(rel_type: str) -> str:
+    """Return a Neo4j relationship type after checking it against the schema."""
+    if rel_type not in ALLOWED_RELATION_TYPES:
+        return "leads_to"
+    return rel_type
+
+
+def _cypher_name(name: str) -> str:
+    """Quote a schema-validated label or relationship type for Cypher."""
+    return f"`{name}`"
 
 
 class Neo4jClient:
@@ -65,8 +90,31 @@ class Neo4jClient:
             rel_type: 关系类型 (默认 leads_to)
             properties: 关系属性 (如置信度、来源报告等)
         """
-        rel = Relationship(source, rel_type, target, **(properties or {}))
-        self.graph.create(rel)
+        props = properties or {}
+        source_name = source.get("name")
+        target_name = target.get("name")
+        if not source_name or not target_name:
+            logger.warning("跳过关系写入: 起点或终点缺少 name")
+            return
+
+        source_label = _safe_label(next(iter(source.labels), "Abnormal_Condition"))
+        target_label = _safe_label(next(iter(target.labels), "Abnormal_Condition"))
+        rel_type = _safe_relation_type(rel_type)
+        source_report = props.get("source", "")
+
+        query = f"""
+        MERGE (s:{_cypher_name(source_label)} {{name: $source_name}})
+        MERGE (t:{_cypher_name(target_label)} {{name: $target_name}})
+        MERGE (s)-[r:{_cypher_name(rel_type)} {{source: $source_report}}]->(t)
+        SET r += $props
+        """
+        self.graph.run(
+            query,
+            source_name=source_name,
+            target_name=target_name,
+            source_report=source_report,
+            props=props,
+        )
 
     def batch_create_triples(
         self,
@@ -87,21 +135,24 @@ class Neo4jClient:
 
         entity_type_map = entity_type_map or {}
         
-        # 开启事务批量提交，大幅减少网络 I/O 开销
         tx = self.graph.begin()
         
         for subj, rel, obj in triples:
-            subj_type = entity_type_map.get(subj, "Abnormal_Condition")
-            obj_type = entity_type_map.get(obj, "Abnormal_Condition")
+            if not subj or not obj:
+                continue
 
-            subj_node = Node(subj_type, name=subj)
-            obj_node = Node(obj_type, name=obj)
-            
-            tx.merge(subj_node, subj_type, "name")
-            tx.merge(obj_node, obj_type, "name")
+            subj_type = _safe_label(entity_type_map.get(subj, "Abnormal_Condition"))
+            obj_type = _safe_label(entity_type_map.get(obj, "Abnormal_Condition"))
+            rel_type = _safe_relation_type(rel)
 
-            rel_obj = Relationship(subj_node, rel, obj_node, source=source_report)
-            tx.create(rel_obj)
+            query = f"""
+            MERGE (s:{_cypher_name(subj_type)} {{name: $subj}})
+            MERGE (o:{_cypher_name(obj_type)} {{name: $obj}})
+            MERGE (s)-[r:{_cypher_name(rel_type)} {{source: $source_report}}]->(o)
+            ON CREATE SET r.created_at = datetime()
+            SET r.updated_at = datetime()
+            """
+            tx.run(query, subj=subj, obj=obj, source_report=source_report)
             
         tx.commit()
 
@@ -154,6 +205,51 @@ class Neo4jClient:
             return [str(row["name"]) for row in data if row.get("name") is not None]
         except Exception:
             return []
+
+    def get_graph_snapshot(self, limit: int = 200) -> Dict[str, List[Dict]]:
+        """
+        获取用于前端展示的图谱快照。
+
+        Returns:
+            {
+                "nodes": [{"id": "...", "label": "...", "group": "..."}],
+                "edges": [{"from": "...", "to": "...", "label": "..."}],
+            }
+        """
+        query = """
+        MATCH (n)
+        WITH n
+        ORDER BY coalesce(n.name, elementId(n))
+        LIMIT $limit
+        WITH collect(n) AS nodes
+        OPTIONAL MATCH (a)-[r]->(b)
+        WHERE a IN nodes AND b IN nodes
+        RETURN
+          [n IN nodes | {
+            id: elementId(n),
+            label: coalesce(n.name, elementId(n)),
+            group: coalesce(labels(n)[0], "Entity"),
+            title: coalesce(n.name, elementId(n))
+          }] AS nodes,
+          [rel IN collect({a: a, r: r, b: b})
+           WHERE rel.r IS NOT NULL | {
+            from: elementId(rel.a),
+            to: elementId(rel.b),
+            label: type(rel.r),
+            title: coalesce(rel.r.source, "")
+          }] AS edges
+        """
+        try:
+            data = self.graph.run(query, limit=limit).data()
+            if not data:
+                return {"nodes": [], "edges": []}
+            return {
+                "nodes": data[0].get("nodes", []),
+                "edges": data[0].get("edges", []),
+            }
+        except Exception as e:
+            logger.error(f"获取图谱快照失败: {e}")
+            return {"nodes": [], "edges": []}
 
     def get_entity_count(self) -> int:
         """获取实体总数"""
