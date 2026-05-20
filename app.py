@@ -63,20 +63,42 @@ def process_question(question, neo4j, retriever, qa):
     scored.sort(key=lambda x: -x[1])
 
     if not scored:
-        return "未在知识图谱中找到与问题相关的实体。", None
+        return "未在知识图谱中找到与问题相关的实体。请尝试提取更准确的关键词。", None
 
-    # 在同分实体中，优先选有因果路径的（避免选到孤立节点）
-    top_score = scored[0][1]
-    candidates = [e for e, s in scored if s == top_score]
-    matched_entity = candidates[0]
-    for entity in candidates:
-        test_paths = neo4j.find_causal_paths(entity, max_depth=2)
-        if test_paths:
-            matched_entity = entity
-            break
-
-    paths = retriever.retrieve(matched_entity, max_depth=5)
-    context = retriever.format_context(paths)
+    # 取 Top 5 匹配的实体，综合检索它们的因果路径
+    top_entities = [e for e, s in scored[:5]]
+    
+    all_paths = []
+    for entity in top_entities:
+        # 向前向后各扩展最多 3 步 (总长可达 6 步)
+        paths = retriever.retrieve(entity, max_depth=3)
+        all_paths.extend(paths)
+        
+    # 按路径长度降序排序，优先处理长逻辑链
+    all_paths.sort(key=lambda x: len(x.get("node_names", [])), reverse=True)
+    
+    # 路径去重与子路径过滤 (去除被长路径完全包含的短路径)
+    unique_paths = []
+    for p in all_paths:
+        p_nodes = p.get("node_names", [])
+        if not p_nodes:
+            continue
+            
+        # 检查是否是已有长路径的子序列
+        is_subpath = False
+        for up in unique_paths:
+            up_nodes = up.get("node_names", [])
+            for i in range(len(up_nodes) - len(p_nodes) + 1):
+                if up_nodes[i:i+len(p_nodes)] == p_nodes:
+                    is_subpath = True
+                    break
+            if is_subpath:
+                break
+                
+        if not is_subpath:
+            unique_paths.append(p)
+    
+    context = retriever.format_context(unique_paths[:15])
     answer = qa.generate(question, context)
     return answer, context
 

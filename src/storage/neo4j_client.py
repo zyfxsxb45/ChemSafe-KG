@@ -127,15 +127,15 @@ class Neo4jClient:
             按路径长度升序排列，最多返回 10 条
         """
         try:
-            # 参数化查询: 先匹配起始节点，再遍历因果链
+            # 参数化查询: 以目标实体为中心，向前后双向扩展，查找最完整的因果链
             query = f"""
-            MATCH path = (start {{name: $name}})
-                          -[:leads_to|involves|mitigated_by*1..{max_depth}]->(end)
+            MATCH path = (start)-[:leads_to|involves|mitigated_by*0..{max_depth}]->(mid {{name: $name}})-[:leads_to|involves|mitigated_by*0..{max_depth}]->(end)
+            WHERE length(path) > 0
             RETURN [n in nodes(path) | n.name] AS node_names,
                    [r in relationships(path) | type(r)] AS rel_types,
                    length(path) AS path_len
-            ORDER BY path_len ASC
-            LIMIT 10
+            ORDER BY path_len DESC
+            LIMIT 50
             """
             data = self.graph.run(query, name=source_entity).data()
             logger.info(f"查询因果路径: '{source_entity}' → 找到 {len(data)} 条")

@@ -187,8 +187,29 @@ def run_demo():
         if not matched_entities:
             context = "未检索到与问题相关的因果路径。"
         else:
-            paths = retriever.retrieve(matched_entities[0], max_depth=4)
-            context = retriever.format_context(paths)
+            all_paths = []
+            for entity in matched_entities[:5]:
+                all_paths.extend(retriever.retrieve(entity, max_depth=3))
+            
+            all_paths.sort(key=lambda x: len(x.get("node_names", [])), reverse=True)
+            unique_paths = []
+            for p in all_paths:
+                p_nodes = p.get("node_names", [])
+                if not p_nodes:
+                    continue
+                is_subpath = False
+                for up in unique_paths:
+                    up_nodes = up.get("node_names", [])
+                    for i in range(len(up_nodes) - len(p_nodes) + 1):
+                        if up_nodes[i:i+len(p_nodes)] == p_nodes:
+                            is_subpath = True
+                            break
+                    if is_subpath:
+                        break
+                if not is_subpath:
+                    unique_paths.append(p)
+            
+            context = retriever.format_context(unique_paths[:10])
             print(f"     因果路径:")
             for line in context.split("\n"):
                 print(f"       {line}")
