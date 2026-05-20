@@ -31,8 +31,24 @@ class TextCleaner:
 
         text = self._normalize_whitespace(text)
         text = self._normalize_punctuation(text)
-        # text = self._remove_headers_footers(text)
-        # text = self._redact_pii(text)
+        text = self._remove_headers_footers(text)
+        text = self._redact_pii(text)
+        return text
+
+    def _remove_headers_footers(self, text: str) -> str:
+        """去除常见的页眉页脚和免责声明"""
+        # 去除类似 "第 x 页 共 y 页"
+        text = re.sub(r'第\s*\d+\s*页\s*共\s*\d+\s*页', '', text)
+        # 去除内部资料等字样
+        text = re.sub(r'内部资料.*?注意保存', '', text)
+        return text.strip()
+
+    def _redact_pii(self, text: str) -> str:
+        """简单的敏感信息脱敏 (如身份证号、手机号)"""
+        # 手机号脱敏
+        text = re.sub(r'1[3-9]\d{9}', '[手机号]', text)
+        # 身份证号脱敏
+        text = re.sub(r'\d{17}[\dXx]', '[身份证号]', text)
         return text
 
     def _normalize_whitespace(self, text: str) -> str:

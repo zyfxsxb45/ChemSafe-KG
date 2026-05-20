@@ -36,11 +36,29 @@ class EntityLinker:
         """
         matched = []
         for name in entity_names:
-            # TODO: 在 Neo4j 中模糊查询节点
-            # query = "MATCH (n) WHERE n.name CONTAINS $name RETURN n LIMIT 5"
-            matched.append({
-                "name": name,
-                "type": "unknown",
-                "matched": False,
-            })
+            # 在 Neo4j 中模糊查询节点
+            query = """
+            MATCH (n) 
+            WHERE n.name CONTAINS $name 
+            RETURN n.name AS name, labels(n)[0] AS type 
+            LIMIT 1
+            """
+            try:
+                result = neo4j_client.graph.run(query, name=name).data()
+                if result:
+                    matched.append({
+                        "name": result[0]["name"],
+                        "type": result[0]["type"],
+                        "matched": True,
+                        "original_query": name
+                    })
+                else:
+                    matched.append({
+                        "name": name,
+                        "type": "unknown",
+                        "matched": False,
+                    })
+            except Exception as e:
+                logger.error(f"实体链接查询失败: {e}")
+                matched.append({"name": name, "type": "unknown", "matched": False})
         return matched

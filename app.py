@@ -58,7 +58,7 @@ def process_question(question, neo4j, retriever, qa):
 
     # 实体匹配（按关键词命中数排序，同分时优先有因果路径的实体）
     words = [w for w in jieba.lcut(question) if len(w) >= 2]
-    scored = [(e, sum(1 for w in words if w in e)) for e in entities]
+    scored = [(e, sum(1 for w in words if w in str(e))) for e in entities]
     scored = [(e, s) for e, s in scored if s > 0]
     scored.sort(key=lambda x: -x[1])
 
@@ -177,24 +177,125 @@ elif page == ":material/quiz: 知识图谱问答":
 elif page == ":material/bar_chart: 多维数据分析":
     st.title(":material/bar_chart: 多维数据分析")
 
+    # 从 SQLite 关系型数据库读取数据
+    try:
+        from config.database import engine
+        import pandas as pd
+        df_accidents = pd.read_sql("SELECT * FROM accidents", engine)
+        sql_count = len(df_accidents)
+    except Exception:
+        df_accidents = pd.DataFrame()
+        sql_count = 0
+
     col1, col2, col3 = st.columns(3)
-    col1.metric("事故案例数", "2 (样本)" if stats["nodes"] > 0 else "待采集")
+    col1.metric("关系数据库(SQLite)事故数", sql_count)
     col2.metric("知识图谱节点", stats["nodes"])
     col3.metric("因果关系边", stats["rels"])
 
-    if stats["nodes"] > 0:
-        st.success(f"知识图谱包含 {stats['nodes']} 个节点和 {stats['rels']} 条关系，覆盖 Equipment/Material/Abnormal_Condition/Consequence/Mitigation 五类实体。")
+    if sql_count > 0:
+        st.success(f"已从 SQLite 数据库加载 {sql_count} 条结构化事故记录。")
+        
+        tab1, tab2 = st.tabs(["📊 统计图表", "🗄️ 数据表预览"])
+        
+        with tab1:
+            if "date" in df_accidents.columns and not df_accidents["date"].isnull().all():
+                # 绘制时间线分布图
+                df_accidents["date"] = pd.to_datetime(df_accidents["date"], errors="coerce")
+                df_accidents["year"] = df_accidents["date"].dt.year.astype(str)
+                trend = df_accidents.groupby("year").size().reset_index(name="count")
+                trend = trend[trend["year"] != "nan"]
+                
+                if not trend.empty:
+                    import plotly.express as px
+                    fig = px.bar(trend, x="year", y="count", title="事故发生年份分布", labels={"year": "年份", "count": "事故数量"})
+                    st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("暂无足够的日期数据用于绘制时间线。")
+                
+        with tab2:
+            st.dataframe(
+                df_accidents[["id", "title", "date", "source_url", "summary"]],
+                use_container_width=True,
+                hide_index=True
+            )
     else:
-        st.info("请先运行 `python scripts/run_demo_pipeline.py` 构建知识图谱。")
+        st.info("关系型数据库中暂无数据。请运行 `python scripts/run_extraction_pipeline.py` 或 `python scripts/seed_data.py` 写入数据。")
 
 elif page == ":material/hub: 知识图谱浏览":
     st.title(":material/hub: 知识图谱可视化浏览")
 
     if stats["nodes"] > 0:
-        st.success(f"知识图谱包含 {stats['nodes']} 个节点")
-        with st.expander("全部节点列表", expanded=True):
-            for e in stats["entities"]:
-                st.markdown(f"- {e}")
+        st.success(f"知识图谱包含 {stats['nodes']} 个节点和 {stats['rels']} 条关系。")
+        
+        with st.spinner("正在加载图谱数据..."):
+            try:
+                from streamlit_agraph import agraph, Node, Edge, Config
+                
+                # 获取图谱数据 (限制 200 条关系以保证前端性能)
+                query = "MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 200"
+                data = neo4j.graph.run(query).data()
+                
+                nodes = []
+                edges = []
+                seen_nodes = set()
+                
+                color_map = {
+                    "Equipment": "#4CAF50",
+                    "Material": "#2196F3",
+                    "Abnormal_Condition": "#FF9800",
+                    "Consequence": "#F44336",
+                    "Mitigation": "#9C27B0",
+                }
+                
+                for row in data:
+                    n = row['n']
+                    m = row['m']
+                    r = row['r']
+                    
+                    n_id = n['name']
+                    n_label = list(n.labels)[0] if n.labels else "Unknown"
+                    
+                    m_id = m['name']
+                    m_label = list(m.labels)[0] if m.labels else "Unknown"
+                    
+                    if n_id not in seen_nodes:
+                        nodes.append(Node(id=n_id, label=n_id, size=25, color=color_map.get(n_label, "#999")))
+                        seen_nodes.add(n_id)
+                        
+                    if m_id not in seen_nodes:
+                        nodes.append(Node(id=m_id, label=m_id, size=25, color=color_map.get(m_label, "#999")))
+                        seen_nodes.add(m_id)
+                        
+                    edges.append(Edge(source=n_id, target=m_id, label=type(r).__name__))
+                    
+                config = Config(
+                    width="100%",
+                    height=600,
+                    directed=True, 
+                    physics=True, 
+                    hierarchical=False,
+                    nodeHighlightBehavior=True,
+                    highlightColor="#F7A7A6",
+                    collapsible=True
+                )
+                
+                agraph(nodes=nodes, edges=edges, config=config)
+                
+                with st.expander("图例与说明", expanded=False):
+                    st.markdown("""
+                    **节点颜色说明**:
+                    - <span style='color:#4CAF50'>■</span> Equipment (设备)
+                    - <span style='color:#2196F3'>■</span> Material (物料)
+                    - <span style='color:#FF9800'>■</span> Abnormal_Condition (异常状态)
+                    - <span style='color:#F44336'>■</span> Consequence (事故后果)
+                    - <span style='color:#9C27B0'>■</span> Mitigation (应急措施)
+                    
+                    *提示: 可以拖拽节点、缩放画布。点击节点可高亮相关连接。*
+                    """, unsafe_allow_html=True)
+                    
+            except Exception as e:
+                st.error(f"图谱渲染失败: {e}")
+                st.info("请确保已安装 streamlit-agraph: `pip install streamlit-agraph`")
     else:
         st.info("知识图谱尚未构建。请运行 `python scripts/run_demo_pipeline.py`。")
 

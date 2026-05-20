@@ -63,21 +63,37 @@ class KGFrontendVisualizer:
     def convert_neo4j_to_vis(self, neo4j_paths: List) -> Dict:
         """
         将 Neo4j 查询路径结果转换为可视化数据。
-
-        TODO [完善]:
-          1. 解析 Neo4j 路径对象的节点和关系
-          2. 节点去重
-          3. 路径合并 (多条路径共享节点)
         """
         nodes, edges = [], []
         seen_nodes = set()
+        seen_edges = set()
 
-        # for path in neo4j_paths:
-        #     for node in path.nodes:
-        #         if node.identity not in seen_nodes:
-        #             nodes.append({...})
-        #             seen_nodes.add(node.identity)
-        #     for rel in path.relationships:
-        #         edges.append({...})
+        for path_dict in neo4j_paths:
+            # 解析 CausalPathRetriever 返回的字典格式
+            node_names = path_dict.get("node_names", [])
+            rel_types = path_dict.get("rel_types", [])
+            
+            for i, name in enumerate(node_names):
+                if name not in seen_nodes:
+                    nodes.append({
+                        "id": name,
+                        "label": name,
+                        "group": "Unknown"  # 默认分组，后续可扩展查询带上真实 Label
+                    })
+                    seen_nodes.add(name)
+                    
+                if i < len(rel_types):
+                    source = name
+                    target = node_names[i+1]
+                    rel = rel_types[i]
+                    edge_id = f"{source}-{rel}-{target}"
+                    
+                    if edge_id not in seen_edges:
+                        edges.append({
+                            "from": source,
+                            "to": target,
+                            "label": rel
+                        })
+                        seen_edges.add(edge_id)
 
         return self.prepare_vis_data(nodes, edges)

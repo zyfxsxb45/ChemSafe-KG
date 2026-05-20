@@ -171,13 +171,14 @@ def run_demo():
         words = [w for w in jieba.lcut(question) if len(w) >= 2]
         entity_scores = []
         for e in entities:
-            matches = [w for w in words if w in e]
+            e_str = str(e)
+            matches = [w for w in words if w in e_str]
             if matches:
-                density = len(matches) / max(len(e), 1)
+                density = len(matches) / max(len(e_str), 1)
                 # 查询该实体是否有出边 (因果路径)
-                has_paths = neo4j.find_causal_paths(e, max_depth=1)
+                has_paths = neo4j.find_causal_paths(e_str, max_depth=1)
                 path_bonus = 3.0 if has_paths else 0.0
-                entity_scores.append((e, len(matches) + density * 0.1 + path_bonus))
+                entity_scores.append((e_str, len(matches) + density * 0.1 + path_bonus))
         entity_scores.sort(key=lambda x: -x[1])
         matched_entities = [e for e, _ in entity_scores]
         print(f"     分词: {words}")

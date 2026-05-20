@@ -151,7 +151,7 @@ class Neo4jClient:
             data = self.graph.run(
                 "MATCH (n) RETURN n.name AS name LIMIT 500"
             ).data()
-            return [row["name"] for row in data if row.get("name")]
+            return [str(row["name"]) for row in data if row.get("name") is not None]
         except Exception:
             return []
 

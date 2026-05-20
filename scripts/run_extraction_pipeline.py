@@ -57,6 +57,47 @@ def extract_entity_type_map(extraction_result: dict) -> dict:
     return type_map
 
 
+def _save_to_relational_db(file_path: Path, raw_text: str, accident_text: str):
+    """将事故基础信息提取并存入关系型数据库 (SQLite)"""
+    from config.database import SessionLocal
+    from src.storage.relational_db import AccidentRecord
+    from datetime import datetime
+
+    title_match = re.search(r"标题:\s*(.+)", raw_text)
+    date_match = re.search(r"日期:\s*(.+)", raw_text)
+    source_match = re.search(r"来源:\s*(.+)", raw_text)
+
+    title = title_match.group(1).strip() if title_match else file_path.stem
+    date_str = date_match.group(1).strip() if date_match else ""
+    source = source_match.group(1).strip() if source_match else ""
+
+    dt = None
+    if date_str and re.match(r"\d{4}-\d{2}-\d{2}", date_str):
+        try:
+            dt = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    session = SessionLocal()
+    try:
+        existing = session.query(AccidentRecord).filter_by(title=title).first()
+        if not existing:
+            record = AccidentRecord(
+                title=title,
+                date=dt,
+                summary=accident_text[:500] + "..." if len(accident_text) > 500 else accident_text,
+                source_url=source,
+                raw_text_path=str(file_path)
+            )
+            session.add(record)
+            session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.error(f"关系数据库写入失败: {e}")
+    finally:
+        session.close()
+
+
 def strip_header(text: str) -> str:
     """
     去除爬虫文件头部的元信息 (标题/来源/日期/月度汇编/=====)，
@@ -156,6 +197,9 @@ def run(input_dir: str, batch_size: int = 5, skip_existing: bool = True):
         title_line = re.search(r"标题: (.+)", raw_text)
         title = title_line.group(1) if title_line else file_path.stem
         logger.info(f"  [{idx}/{stats['total']}] {title[:45]:45s} ({len(accident_text)}字符)")
+
+        # 写入关系型数据库 (SQLite)
+        _save_to_relational_db(file_path, raw_text, accident_text)
 
         # 调用 LLM 抽取
         try:
