@@ -76,11 +76,18 @@ class LLMClient:
         调用 LLM 并解析 JSON 响应。
         专为结构化知识抽取设计。
         """
-        # TODO [完善]: 某些API可能不支持 response_format
-        # 此时需要手动解析返回文本中的 JSON
         text = self.chat(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             response_format={"type": "json_object"},
         )
+        
+        # 清理可能存在的 Markdown 格式 (如 ```json ... ```)
+        text = text.strip()
+        if text.startswith("```"):
+            lines = text.split("\n")
+            if len(lines) > 1:
+                # 去除第一行(```json)和最后一行(```)
+                text = "\n".join(lines[1:-1]) if lines[-1].startswith("```") else "\n".join(lines[1:])
+                
         return json.loads(text)

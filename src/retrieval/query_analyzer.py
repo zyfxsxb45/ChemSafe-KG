@@ -61,14 +61,15 @@ class QueryAnalyzer:
 
     def _extract_entities(self, question: str) -> List[str]:
         """
-        从问题中提取化工安全领域的实体。
-
-        TODO [完善]:
-          1. 使用 jieba 分词 + 自定义词典
-          2. 匹配知识图谱中已有的实体名
-          3. 支持同义词扩展 (如 "丙烯腈" ↔ "AN")
+        从问题中提取化工安全领域的实体候选词。
         """
-        # import jieba
-        # words = jieba.lcut(question)
-        # 与 KG 中的实体名进行匹配...
-        return []
+        try:
+            import jieba
+            # 提取长度大于等于2的词作为候选实体
+            words = [w for w in jieba.lcut(question) if len(w) >= 2]
+            # 过滤掉常见的疑问词和动词停用词
+            stop_words = {"怎么", "如何", "为什么", "导致", "发生", "什么", "原因", "引发", "造成"}
+            return [w for w in words if w not in stop_words]
+        except ImportError:
+            logger.warning("未安装 jieba，实体提取降级为空")
+            return []

@@ -75,36 +75,38 @@ class Neo4jClient:
         source_report: str = "",
     ):
         """
-        批量创建三元组 (实体-关系-实体)，使用 MERGE 避免重复。
+        批量创建三元组 (实体-关系-实体)，使用事务 (Transaction) 加速写入。
 
         Args:
             triples: [(subject, relation, object), ...]
-            entity_type_map: {实体名: 实体类型} 映射，如 {"冷却水循环泵": "Equipment"}
+            entity_type_map: {实体名: 实体类型} 映射
             source_report: 来源报告标识
-
-        说明:
-            - 节点使用 MERGE (匹配已有，无则创建)
-            - 关系使用 CREATE (允许同一对节点间存在多条关系)
-            - entity_type_map 中缺失的实体默认赋类型 Abnormal_Condition
         """
-        entity_type_map = entity_type_map or {}
+        if not triples:
+            return
 
+        entity_type_map = entity_type_map or {}
+        
+        # 开启事务批量提交，大幅减少网络 I/O 开销
+        tx = self.graph.begin()
+        
         for subj, rel, obj in triples:
             subj_type = entity_type_map.get(subj, "Abnormal_Condition")
             obj_type = entity_type_map.get(obj, "Abnormal_Condition")
 
-            # 使用 MERGE 创建/匹配节点
             subj_node = Node(subj_type, name=subj)
             obj_node = Node(obj_type, name=obj)
-            self.graph.merge(subj_node, subj_type, "name")
-            self.graph.merge(obj_node, obj_type, "name")
+            
+            tx.merge(subj_node, subj_type, "name")
+            tx.merge(obj_node, obj_type, "name")
 
-            # 创建关系
             rel_obj = Relationship(subj_node, rel, obj_node, source=source_report)
-            self.graph.create(rel_obj)
+            tx.create(rel_obj)
+            
+        tx.commit()
 
         logger.info(
-            f"已写入 {len(triples)} 条三元组到 Neo4j "
+            f"已批量写入 {len(triples)} 条三元组到 Neo4j "
             f"(实体类型: {set(entity_type_map.values())})"
         )
 

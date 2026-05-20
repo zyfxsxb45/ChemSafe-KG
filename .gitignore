@@ -44,3 +44,4 @@ logs/
 
 # ── Notebook 临时输出 ──
 .ipynb_checkpoints/
+.aider*
