@@ -57,11 +57,17 @@ def extract_entity_type_map(extraction_result: dict) -> dict:
     return type_map
 
 
-def _save_to_relational_db(file_path: Path, raw_text: str, accident_text: str):
-    """将事故基础信息提取并存入关系型数据库 (SQLite)"""
+def _save_to_relational_db(file_path: Path, raw_text: str, accident_text: str, llm_result: dict, type_map: dict):
+    """将事故基础信息及 LLM 抽取结果存入关系型数据库 (SQLite)"""
     from config.database import SessionLocal
     from src.storage.relational_db import AccidentRecord
     from datetime import datetime
+
+    # 从 LLM 结果中提取原因、后果和相关实体
+    root_cause = llm_result.get("root_cause", "")
+    consequence = llm_result.get("consequence", "")
+    chemicals = [name for name, t in type_map.items() if t == "Material"]
+    equipments = [name for name, t in type_map.items() if t == "Equipment"]
 
     title_match = re.search(r"标题:\s*(.+)", raw_text)
     date_match = re.search(r"日期:\s*(.+)", raw_text)
@@ -87,7 +93,11 @@ def _save_to_relational_db(file_path: Path, raw_text: str, accident_text: str):
                 date=dt,
                 summary=accident_text[:500] + "..." if len(accident_text) > 500 else accident_text,
                 source_url=source,
-                raw_text_path=str(file_path)
+                raw_text_path=str(file_path),
+                root_cause=root_cause,
+                consequence=consequence,
+                related_chemicals=",".join(chemicals),
+                related_equipment=",".join(equipments)
             )
             session.add(record)
             session.commit()
@@ -198,9 +208,6 @@ def run(input_dir: str, batch_size: int = 5, skip_existing: bool = True):
         title = title_line.group(1) if title_line else file_path.stem
         logger.info(f"  [{idx}/{stats['total']}] {title[:45]:45s} ({len(accident_text)}字符)")
 
-        # 写入关系型数据库 (SQLite)
-        _save_to_relational_db(file_path, raw_text, accident_text)
-
         # 调用 LLM 抽取
         try:
             result = extractor.extract_from_text(accident_text)
@@ -218,6 +225,9 @@ def run(input_dir: str, batch_size: int = 5, skip_existing: bool = True):
         # 转换为三元组
         type_map = extract_entity_type_map(result)
         triples = extractor.convert_to_triples(result)
+
+        # 写入关系型数据库 (SQLite)
+        _save_to_relational_db(file_path, raw_text, accident_text, result, type_map)
 
         if not triples:
             logger.warning(f"    → 未提取到三元组")

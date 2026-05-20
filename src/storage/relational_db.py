@@ -29,6 +29,12 @@ class AccidentRecord(Base):
     casualties = Column(String(100))
     source_url = Column(String(500))
     raw_text_path = Column(String(500))
+    
+    # 新增大模型提取的结构化字段
+    root_cause = Column(Text)
+    consequence = Column(Text)
+    related_chemicals = Column(String(500))
+    related_equipment = Column(String(500))
 
 
 class ChemicalProperty(Base):

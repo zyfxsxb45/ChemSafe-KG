@@ -235,10 +235,21 @@ elif page == ":material/bar_chart: 多维数据分析":
                 st.info("暂无足够的日期数据用于绘制时间线。")
                 
         with tab2:
+            st.markdown(f"**当前数据表共包含 {sql_count} 条事故记录**")
+            # 动态选择列，兼容旧数据库结构
+            desired_cols = [
+                "id", "title", "date", "summary", 
+                "root_cause", "consequence", 
+                "related_chemicals", "related_equipment",
+                "source_url"
+            ]
+            display_cols = [c for c in desired_cols if c in df_accidents.columns]
+            
             st.dataframe(
-                df_accidents[["id", "title", "date", "source_url", "summary"]],
+                df_accidents[display_cols],
                 use_container_width=True,
-                hide_index=True
+                hide_index=True,
+                height=600  # 增加表格的默认显示高度
             )
     else:
         st.info("关系型数据库中暂无数据。请运行 `python scripts/run_extraction_pipeline.py` 或 `python scripts/seed_data.py` 写入数据。")
