@@ -1,8 +1,8 @@
 # ChemSafe-KG 项目框架说明文档
 
 > **项目**：ChemSafe-KG：基于大模型驱动的化工安全事故知识图谱构建与因果推理问答系统  
-> **框架版本**：v0.4.0（数据采集模块完成，支持批量 KG 构建）  
-> **编写时间**：2026-05-18
+> **框架版本**：v0.4.1（批量抽取含 SQLite 双写入，30 条真实事故 QA 实测验证通过）  
+> **编写时间**：2026-05-18（最后修订）
 
 ---
 
@@ -107,12 +107,10 @@ ChemSafe-KG/
 │       └── causal_path_viz.py      #   因果路径可视化
 │
 ├── scripts/                        # 工具脚本
-│   ├── init_db.py                  # 数据库初始化
-│   ├── seed_data.py                # 种子数据插入（含 LLM 抽取入库）
+│   ├── init_db.py                  #   数据库初始化
+│   ├── seed_data.py                #   种子数据插入（含 LLM 抽取入库）
 │   ├── run_demo_pipeline.py        # ★ 端到端演示流水线（核心）
-│   ├── run_extraction_pipeline.py  # ★ 批量知识抽取流水线（已实现）
-│   ├── init_db.py                  # 数据库初始化
-│   └── seed_data.py                # 种子数据插入（含 LLM 抽取入库）
+│   └── run_extraction_pipeline.py  # ★ 批量知识抽取流水线（含 SQLite 双写入）
 │
 ├── data/                           # 数据目录
 │   ├── raw/                        #   原始数据（.gitkeep 占位）
@@ -193,7 +191,7 @@ ChemSafe-KG/
 Prompt 设计示例已在 `prompt_templates.py` 中完整定义，包含：
 - **System Prompt**：化工过程安全专家角色设定
 - **实体类型**：Equipment, Material, Abnormal_Condition, Consequence, Mitigation
-- **关系类型**：leads_to, involves, mitigated_by
+- **关系类型**：leads_to, involves, mitigated_by, occurs_at, has_property（Prompt 中用前三种；全集合在 settings.py 中定义）
 - **输出格式**：严格的 JSON Schema 约束（event_chain + root_cause + consequence）
 
 #### TODO 清单
@@ -222,7 +220,7 @@ Prompt 设计示例已在 `prompt_templates.py` 中完整定义，包含：
 |------|------|------|
 | Neo4j 客户端 | `neo4j_client.py` | `Neo4jClient` 类，连接管理、节点/关系创建、路径查询 |
 | Schema管理 | `schema_manager.py` | `GraphSchema` 类，节点标签、关系类型、索引约束定义 |
-| 关系数据库 | `relational_db.py` | SQLAlchemy ORM 模型：AccidentRecord, ChemicalProperty, WeatherRecord |
+| 关系数据库 | `relational_db.py` | SQLAlchemy ORM 模型：AccidentRecord（含 `root_cause`/`consequence`/`related_chemicals`/`related_equipment` 新字段）、ChemicalProperty、WeatherRecord。流水线中 `_save_to_relational_db()` 同步写入 SQLite |
 | 数据链接 | `data_linker.py` | `DataLinker` 类，KG↔SQL 跨源链接 |
 
 #### TODO 清单
@@ -230,8 +228,8 @@ Prompt 设计示例已在 `prompt_templates.py` 中完整定义，包含：
 - [x] **【关键】安装并启动 Neo4j**（已完成）：Neo4j Community 5.26.25 @ `D:\Program Files\neo4j-community-5.26.25`
 - [x] **【关键】配置 Neo4j 连接**（已完成）：`.env` 中 `bolt://localhost:7687`，密码 `chemsafe123`
 - [x] **实现数据库索引创建**（已完成）：`schema_manager.py` 中的 `create_index_constraints()` 现会实际执行 Cypher
-- [ ] **实现节点去重**：`batch_create_triples()` 需要检查节点是否存在再创建（已建 UNIQUE 约束，违反时会抛异常）
-- [ ] **完善 ORM 模型**：`relational_db.py` 中的字段类型和约束需要根据实际数据调整
+- [x] **实现节点去重**：`batch_create_triples()` 使用 MERGE + UNIQUE 约束自动去重
+- [x] **完善 ORM 模型**：AccidentRecord 扩充了 `root_cause`、`consequence`、`related_chemicals`、`related_equipment` 四个字段，用于存储 LLM 抽取结果
 - [ ] **实现跨源链接**：`data_linker.py` 需要实现 Neo4j↔PostgreSQL 的数据联动
 
 ---
@@ -253,9 +251,7 @@ Prompt 设计示例已在 `prompt_templates.py` 中完整定义，包含：
 
 #### TODO 清单
 
-- [x] **实现因果路径检索**（已完成）：`CausalPathRetriever.retrieve()` 和 `find_causal_paths()` 均可实际执行 Cypher 查询
-- [x] **实现上下文格式化**（已完成）：`format_context()` 将路径数据格式化为结构化的文本因果链
-- [ ] **实现 jieba 分词集成**：`query_analyzer._extract_entities()` 需要用 jieba 分词 + 自定义化工词典
+- [x] **实现 jieba 分词集成**（已完成）：`query_analyzer._extract_entities()` 已集成 jieba。`app.py` 中额外实现了"关键词命中评分 + 因果路径加分"的实体匹配策略（修复单字化学品丢词问题）
 - [ ] **扩充意图关键词**：`INTENT_KEYWORDS` 需要根据更多查询场景扩充
 - [ ] **实现模糊实体匹配**：`entity_linker.link_entities()` 需要实现精确→模糊→同义词三级匹配策略
 - [ ] **完善 Cypher 模板**：`cypher_generator.py` 需要覆盖因果链、风险因素、缓解措施、统计等多种查询类型
@@ -278,8 +274,8 @@ Prompt 设计示例已在 `prompt_templates.py` 中完整定义，包含：
 
 #### TODO 清单
 
-- [x] **【关键】集成 LLM 调用**（已完成）：`answer_generator.generate()` 已验证可通过 DeepSeek API 生成回答
-- [ ] **完善约束生成 Prompt**：`context_builder.GRAPH_RAG_SYSTEM_PROMPT` 需要细化约束规则
+- [x] **【关键】集成 LLM 调用**（已完成）：通过 6 组真实问题实测验证，因果约束机制有效防止 LLM 臆造
+- [x] **完善约束生成 Prompt**：包含"信息局限性说明"、"因果顺序约束"、"安全建议模板"三段式规则
 - [ ] **实现引用来源标注**：在生成答案时标注每条陈述对应的因果路径来源
 - [ ] **实现上下文窗口管理**：当检索结果超过 LLM 上下文限制时进行截断或摘要
 - [ ] **实现全文检索降级**：`fallback_handler.text_search_fallback()` 需要构建文本倒排索引
@@ -304,9 +300,9 @@ Prompt 设计示例已在 `prompt_templates.py` 中完整定义，包含：
 
 #### TODO 清单
 
-- [x] **实现问答界面交互**（已完成）：`app.py` 问答页面可实时连接 Neo4j，调用 QA 流水线生成回答
-- [ ] **完善 KG 可视化**：`prepare_vis_data()` 的节点颜色、大小、标签需要优化
-- [ ] **实现 Neo4j→vis 转换**：`convert_neo4j_to_vis()` 需要实际解析 Neo4j 路径对象
+- [x] **实现问答界面交互**（已完成）：5 页 Streamlit 应用（系统概览/知识图谱问答/多维数据分析/图谱浏览/系统管理），从 SQLite 读取结构化数据绘制时间线图
+- [x] **完善 KG 可视化**：streamlit-agraph 交互式渲染，5 种节点颜色编码，支持拖拽缩放和折叠
+- [x] **实现 Neo4j→vis 转换**：`get_graph_snapshot()` 和 `prepare_vis_data()` 完整支持 Neo4j 到前端图形
 - [ ] **填充统计图表**：`stats_dashboard.py` 中的各图表方法需要实际数据
 - [ ] **添加数据管理功能**：系统管理页面的数据流水线控制功能
 - [ ] **UI/UX 优化**：布局、响应式、加载状态等
@@ -542,7 +538,7 @@ python -c "from config.llm_config import get_llm_client; print('LLM OK:', [m.id 
 
 # 检查 Neo4j 连接
 python -c "from py2neo import Graph; g=Graph('bolt://localhost:7687',auth=('neo4j','chemsafe123')); print('Neo4j OK:', g.run('MATCH (n) RETURN count(n)').data()[0])"
-
+```
 ---
 
 ## 7. 技术债务与风险说明

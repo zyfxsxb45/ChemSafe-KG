@@ -25,10 +25,11 @@ ChemSafe-KG 是一个端到端的化工安全知识图谱系统，核心创新�
 | 气象 API | ✅ 完成 | Open-Meteo（免费，无需 Key），全球历史气象数据 |
 | LLM 知识抽取 | ✅ 完成 | DeepSeek deepseek-v4-flash，Prompt Chain 抽取，样本已验证 |
 | 端到端演示流水线 | ✅ 验证通过 | 样本数据抽取→存储→检索→问答全链路已跑通 |
-| 批量抽取流水线 | ✅ 可用 | `run_extraction_pipeline.py` 支持批量 .txt → LLM 抽取 → Neo4j 入库 |
+| 批量抽取流水线 | ✅ 可用 | `run_extraction_pipeline.py` 支持批量 .txt → LLM 抽取 → Neo4j + SQLite 双写入 |
 | Streamlit 问答 | ✅ 可用 | `app.py` 实时连接 Neo4j，支持自然语言查询 |
-| 真实数据 | ⚡ 进行中 | 可通过爬虫采集，已支持 30+ 条事故批量入库验证 |
+| 真实数据 | ⚡ 进行中 | 已采集 30+ 条事故，通过 6 组问题实测验证 QA 效果 |
 | PDF 解析 / OCR | ⏳ 待实现 | pdfplumber 集成待填充，扫描 PDF 需 PaddleOCR |
+| 关系数据库写入 | ✅ 新增 | 批量抽取同步写入 SQLite（`root_cause`, `consequence` 等字段），首次运行前需 `del chemsafe.db + init_db.py` |
 
 ## 快速开始
 
@@ -39,7 +40,7 @@ pip install -r requirements.txt
 # 2. 配置环境变量（编辑 .env，填入 LLM_API_KEY 和 Neo4j 密码）
 #    .env.example 中有模板
 
-# 3. 初始化数据库
+# 3. 初始化数据库（⚠ 如遇 column 不存在错误，先删除旧数据库: del data\processed\chemsafe.db）
 python scripts/init_db.py
 
 # 4a. 端到端演示（样本数据 → Neo4j → 问答）
@@ -59,12 +60,11 @@ streamlit run app.py
 
 | 数据源 | 优先级 | 状态 | 说明 |
 |--------|--------|------|------|
-| **ciedu.com.cn** 事故案例库 | P0 | ⚠️ 浏览器可访问（requests 被挡） | 1950-2026 年完整调查报告原文，含 PDF 附件，质量极高 |
+| **ciedu.com.cn** 事故案例库 | P0 | ⚠️ 浏览器可访问（含 CAPTCHA，requests 返回 502） | 1950-2026 年完整调查报告原文，含 PDF 附件，质量极高。需 browser tool 接入 |
 | **mem.gov.cn** 历史上的危化品事故 | P1 | ✅ 已实现 | 94 个月度页，每页 17-41 起事故，含根因分析 |
 | **CSB** (美国化学品安全委员会) | P2 | ✅ 已实现 (requests) | 已完成调查列表，JS 渲染需 browser tool 补全 |
 | **PubChem** 化学品物性 | P0 | ✅ 已实现 | 20 种危化品，无需 API Key |
 | **Open-Meteo** 气象数据 | P0 | ✅ 已实现 | 全球历史天气，1940 年起，无需 Key |
-| ichemsafe.com | P2 | ❌ 需登录 | 待评估 |
 | ichemsafe.com | P2 | ❌ 需登录 | 待评估 |
 
 ### 爬虫运行
