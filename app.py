@@ -278,10 +278,11 @@ elif page == ":material/hub: 知识图谱浏览":
                 from streamlit_agraph import agraph, Node, Edge, Config
                 from src.visualization.kg_visualizer import KGFrontendVisualizer
                 
+                max_limit = max(300, stats["nodes"])
                 limit = st.slider(
                     "显示节点上限",
                     min_value=20,
-                    max_value=300,
+                    max_value=max_limit,
                     value=min(max(stats["nodes"], 20), 120),
                     step=20,
                 )
