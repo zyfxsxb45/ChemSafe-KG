@@ -199,8 +199,12 @@ class Neo4jClient:
     def get_all_entity_names(self) -> List[str]:
         """获取知识图谱中所有实体名称（用于实体链接）"""
         try:
+            # 只返回 ChemSafe-KG 定义的实体类型，排除其他项目的数据
             data = self.graph.run(
-                "MATCH (n) RETURN n.name AS name LIMIT 500"
+                "MATCH (n) WHERE n.name IS NOT NULL AND size(labels(n)) > 0 "
+                "WITH n, labels(n)[0] AS label "
+                "WHERE label IN ['Equipment', 'Material', 'Abnormal_Condition', 'Consequence', 'Mitigation', 'Accident'] "
+                "RETURN n.name AS name LIMIT 500"
             ).data()
             return [str(row["name"]) for row in data if row.get("name") is not None]
         except Exception:
@@ -218,7 +222,9 @@ class Neo4jClient:
         """
         query = """
         MATCH (n)
-        WITH n
+        WHERE size(labels(n)) > 0
+        WITH n, labels(n)[0] AS label
+        WHERE label IN ['Equipment', 'Material', 'Abnormal_Condition', 'Consequence', 'Mitigation', 'Accident']
         ORDER BY coalesce(n.name, elementId(n))
         LIMIT $limit
         WITH collect(n) AS nodes
@@ -252,8 +258,13 @@ class Neo4jClient:
             return {"nodes": [], "edges": []}
 
     def get_entity_count(self) -> int:
-        """获取实体总数"""
-        data = self.graph.run("MATCH (n) RETURN count(n) AS c").data()
+        """获取实体总数（仅限 ChemSafe-KG 定义的实体类型）"""
+        data = self.graph.run(
+            "MATCH (n) WHERE size(labels(n)) > 0 "
+            "WITH n, labels(n)[0] AS label "
+            "WHERE label IN ['Equipment', 'Material', 'Abnormal_Condition', 'Consequence', 'Mitigation', 'Accident'] "
+            "RETURN count(n) AS c"
+        ).data()
         return data[0]["c"] if data else 0
 
     def get_relation_count(self) -> int:

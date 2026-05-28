@@ -44,9 +44,21 @@ class EntityExtractor:
 
         try:
             result = self.llm.chat_json(
-                system_prompt=self.templates.SYSTEM_PROMPT,
+                system_prompt=self.templates.get_system_prompt_with_rules(),
                 user_prompt=prompt,
             )
+            # 防御性过滤：删除 LLM 产生的非法实体类型
+            if result and "event_chain" in result:
+                from config.settings import extraction as ext_config
+                valid_types = set(ext_config.ENTITY_TYPES)
+                filtered = []
+                for item in result["event_chain"]:
+                    if isinstance(item, dict) and "entity" in item:
+                        etype = item.get("type", "")
+                        if etype not in valid_types:
+                            continue  # 跳过非法类型的实体
+                    filtered.append(item)
+                result["event_chain"] = filtered
             return result
         except (json.JSONDecodeError, KeyError) as e:
             logger.error(f"抽取结果解析失败: {e}")

@@ -39,6 +39,12 @@ def get_qa():
     return AnswerGenerator()
 
 
+@st.cache_resource
+def get_embedder():
+    from src.retrieval.entity_embedder import EntityEmbedder
+    return EntityEmbedder()
+
+
 # 获取 Neo4j 统计信息
 def get_graph_stats(neo4j):
     try:
@@ -82,6 +88,19 @@ def process_question(question, neo4j, retriever, qa):
     for entity, _score in scored[:5]:
         if entity not in top_entities:
             top_entities.append(entity)
+
+    # 第三路：嵌入相似性匹配（补全词法盲区: 液氯→氯气等）
+    # 对整句和每个分词分别查询，合并去重
+    try:
+        embedder = get_embedder()
+        embedder.load_or_build(entities)
+        embed_queries = [question] + [w for w in words]
+        for eq in embed_queries:
+            for r in embedder.find_similar(eq, top_k=3, threshold=0.4):
+                if r["name"] not in top_entities:
+                    top_entities.append(r["name"])
+    except Exception:
+        pass  # 嵌入匹配失败不影响主流程
 
     all_paths = []
     for entity in top_entities[:8]:
