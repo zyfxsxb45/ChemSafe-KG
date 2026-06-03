@@ -418,6 +418,7 @@ elif page == ":material/hub: 知识图谱浏览":
     )
 
     if path_entity:
+        retriever = get_retriever()
         from src.visualization.causal_path_viz import CausalPathVisualizer
         path_viz = CausalPathVisualizer()
 
