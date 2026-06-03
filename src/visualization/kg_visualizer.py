@@ -29,33 +29,51 @@ class KGFrontendVisualizer:
           3. 关系标签显示优化
           4. 布局算法选择 (层次布局适合因果图)
         """
-        # 节点颜色映射
+        # 节点颜色 + 大小映射
         color_map = {
             "Equipment": "#4CAF50",
             "Material": "#2196F3",
             "Abnormal_Condition": "#FF9800",
             "Consequence": "#F44336",
             "Mitigation": "#9C27B0",
+            "Accident": "#607D8B",
+        }
+        size_map = {
+            "Consequence": 35,        # 事故后果最大
+            "Equipment": 28,
+            "Material": 25,
+            "Abnormal_Condition": 22,
+            "Mitigation": 20,
+            "Accident": 30,
+        }
+        # 关系颜色映射
+        edge_color_map = {
+            "leads_to": "#FF5722",
+            "involves": "#2196F3",
+            "mitigated_by": "#4CAF50",
         }
 
         vis_nodes = []
         for node in nodes:
+            group = node.get("group", "")
             vis_nodes.append({
                 "id": node["id"],
                 "label": node.get("label", node["id"]),
                 "title": node.get("title", ""),
-                "color": color_map.get(node.get("group", ""), "#999"),
-                "group": node.get("group", ""),
+                "color": color_map.get(group, "#999"),
+                "size": size_map.get(group, 20),
+                "group": group,
             })
 
         vis_edges = []
         for edge in edges:
+            rel_type = edge.get("label", "")
             vis_edges.append({
                 "from": edge["from"],
                 "to": edge["to"],
-                "label": edge.get("label", ""),
+                "label": rel_type,
                 "arrows": "to",
-                "color": {"color": "#666"},
+                "color": {"color": edge_color_map.get(rel_type, "#666")},
             })
 
         return {"nodes": vis_nodes, "edges": vis_edges}

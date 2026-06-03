@@ -38,19 +38,25 @@ class AccidentRecord(Base):
 
 
 class ChemicalProperty(Base):
-    """化学品物性表"""
+    """化学品物性表（数据源: PubChem via pubchempy）"""
     __tablename__ = "chemical_properties"
 
-    # TODO [完善]: 根据实际 API 返回字段设计
     id = Column(Integer, primary_key=True, autoincrement=True)
-    chemical_name = Column(String(200), unique=True)
-    cas_number = Column(String(50))
-    boiling_point = Column(Float)
-    flash_point = Column(Float)
-    upper_explosion_limit = Column(Float)
-    lower_explosion_limit = Column(Float)
-    vapor_pressure = Column(Float)
-    toxicity_class = Column(String(100))
+    # ── 基础标识 ──
+    chemical_name = Column(String(200), unique=True, nullable=False, comment="中文名")
+    english_name = Column(String(200), comment="英文名")
+    cas_number = Column(String(50), comment="CAS号")
+    iupac_name = Column(String(500), comment="IUPAC系统命名")
+    # ── 基础物性 ──
+    molecular_weight = Column(Float, comment="分子量 (g/mol)")
+    # ── 安全相关物性（PubChem 不一定有值，需额外查询）──
+    boiling_point = Column(Float, comment="沸点 (℃)")
+    flash_point = Column(Float, comment="闪点 (℃)")
+    upper_explosion_limit = Column(Float, comment="爆炸上限 (%)")
+    lower_explosion_limit = Column(Float, comment="爆炸下限 (%)")
+    vapor_pressure = Column(Float, comment="蒸气压 (mmHg)")
+    autoignition_temp = Column(Float, comment="自燃温度 (℃)")
+    toxicity_class = Column(String(100), comment="毒性分类")
 
 
 class WeatherRecord(Base):

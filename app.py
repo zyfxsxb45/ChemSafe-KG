@@ -164,7 +164,7 @@ page = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.caption("ChemSafe-KG v0.4.0 · 数据库技术及应用课程项目")
+st.sidebar.caption("ChemSafe-KG v0.5.0 · 数据库技术及应用课程项目")
 
 # ─── 页面路由 ─────────────────────────────────────────────────────────────
 if page == ":material/home: 系统概览":
@@ -231,7 +231,7 @@ elif page == ":material/quiz: 知识图谱问答":
 elif page == ":material/bar_chart: 多维数据分析":
     st.title(":material/bar_chart: 多维数据分析")
 
-    # 从 SQLite 关系型数据库读取数据
+    # 从 SQLite 加载
     try:
         from config.database import engine
         import pandas as pd
@@ -241,47 +241,92 @@ elif page == ":material/bar_chart: 多维数据分析":
         df_accidents = pd.DataFrame()
         sql_count = 0
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("关系数据库(SQLite)事故数", sql_count)
-    col2.metric("知识图谱节点", stats["nodes"])
-    col3.metric("因果关系边", stats["rels"])
+    from src.visualization.stats_dashboard import StatsDashboard
+    dashboard = StatsDashboard()
+
+    # ── 概要统计卡片 ──
+    summary = dashboard.summary_stats(df_accidents, neo4j)
+
+    st.markdown("### 数据概要")
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1.metric("事故总数", summary["total_accidents"])
+    c2.metric("图节点", summary["neo4j_nodes"])
+    c3.metric("图关系", summary["neo4j_rels"])
+    c4.metric("时间跨度", summary["date_range"])
+    c5.metric("主要类型", summary["top_type"])
 
     if sql_count > 0:
-        st.success(f"已从 SQLite 数据库加载 {sql_count} 条结构化事故记录。")
-        
-        tab1, tab2 = st.tabs(["📊 统计图表", "🗄️ 数据表预览"])
-        
+        st.success(f"已从 SQLite 加载 {sql_count} 条结构化事故记录。")
+
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "📊 趋势与分布", "🧪 化学品与设备", "🔗 图谱统计", "🗄️ 数据表预览"
+        ])
+
         with tab1:
-            if "date" in df_accidents.columns and not df_accidents["date"].isnull().all():
-                # 绘制时间线分布图
-                df_accidents["date"] = pd.to_datetime(df_accidents["date"], errors="coerce")
-                df_accidents["year"] = df_accidents["date"].dt.year.astype(str)
-                trend = df_accidents.groupby("year").size().reset_index(name="count")
-                trend = trend[trend["year"] != "nan"]
-                
-                if not trend.empty:
-                    import plotly.express as px
-                    fig = px.bar(trend, x="year", y="count", title="事故发生年份分布", labels={"year": "年份", "count": "事故数量"})
-                    st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("暂无足够的日期数据用于绘制时间线。")
-                
+            col_left, col_right = st.columns(2)
+            with col_left:
+                fig_timeline = dashboard.accident_timeline(df_accidents)
+                st.plotly_chart(fig_timeline, use_container_width=True)
+            with col_right:
+                fig_type = dashboard.accident_type_pie(df_accidents)
+                st.plotly_chart(fig_type, use_container_width=True)
+
+            fig_monthly = dashboard.monthly_trend(df_accidents)
+            st.plotly_chart(fig_monthly, use_container_width=True)
+
+            fig_loc = dashboard.location_bar(df_accidents)
+            st.plotly_chart(fig_loc, use_container_width=True)
+
         with tab2:
+            col_left, col_right = st.columns(2)
+            with col_left:
+                if "related_chemicals" in df_accidents.columns:
+                    fig_chem = dashboard.chemical_frequency_bar(df_accidents)
+                    st.plotly_chart(fig_chem, use_container_width=True)
+                else:
+                    st.info("化学品数据待抽取（运行批量流水线后自动填充）")
+            with col_right:
+                if "related_equipment" in df_accidents.columns:
+                    fig_eq = dashboard.equipment_frequency_bar(df_accidents)
+                    st.plotly_chart(fig_eq, use_container_width=True)
+                else:
+                    st.info("设备数据待抽取")
+
+            # 化学品风险矩阵 (从 SQLite chemical_properties 表读取)
+            try:
+                chem_df = pd.read_sql("SELECT * FROM chemical_properties", engine)
+                if not chem_df.empty:
+                    fig_risk = dashboard.chemical_risk_matrix(chem_df)
+                    st.plotly_chart(fig_risk, use_container_width=True)
+                else:
+                    st.info("化学品物性数据待填充（运行 seed_data.py 可插入示例数据）")
+            except Exception:
+                st.info("化学品物性表为空")
+
+        with tab3:
+            col_left, col_right = st.columns(2)
+            with col_left:
+                fig_nodetype = dashboard.neo4j_node_type_pie(neo4j)
+                st.plotly_chart(fig_nodetype, use_container_width=True)
+            with col_right:
+                fig_sankey = dashboard.causal_chain_sankey(neo4j)
+                st.plotly_chart(fig_sankey, use_container_width=True)
+
+        with tab4:
             st.markdown(f"**当前数据表共包含 {sql_count} 条事故记录**")
-            # 动态选择列，兼容旧数据库结构
             desired_cols = [
-                "id", "title", "date", "summary", 
-                "root_cause", "consequence", 
+                "id", "title", "date", "summary",
+                "root_cause", "consequence",
                 "related_chemicals", "related_equipment",
                 "source_url"
             ]
             display_cols = [c for c in desired_cols if c in df_accidents.columns]
-            
+
             st.dataframe(
                 df_accidents[display_cols],
                 use_container_width=True,
                 hide_index=True,
-                height=600  # 增加表格的默认显示高度
+                height=600,
             )
     else:
         st.info("关系型数据库中暂无数据。请运行 `python scripts/run_extraction_pipeline.py` 或 `python scripts/seed_data.py` 写入数据。")
@@ -361,8 +406,39 @@ elif page == ":material/hub: 知识图谱浏览":
             except Exception as e:
                 st.error(f"图谱渲染失败: {e}")
                 st.info("请确保已安装 streamlit-agraph: `pip install streamlit-agraph`")
-    else:
-        st.info("知识图谱尚未构建。请运行 `python scripts/run_demo_pipeline.py`。")
+
+    # ── 因果路径可视化 ──
+    st.markdown("---")
+    st.markdown("### 🔍 因果路径探索")
+
+    path_entity = st.selectbox(
+        "选择实体查看因果路径",
+        options=stats["entities"][:50] if stats["entities"] else [],
+        placeholder="输入实体名搜索...",
+    )
+
+    if path_entity:
+        from src.visualization.causal_path_viz import CausalPathVisualizer
+        path_viz = CausalPathVisualizer()
+
+        with st.spinner(f"检索 '{path_entity}' 的因果路径..."):
+            paths = retriever.retrieve(path_entity, max_depth=4)
+
+            if paths:
+                st.markdown(f"找到 {len(paths)} 条因果路径：")
+                fig_paths = path_viz.visualize_from_neo4j_paths(paths, top_k=5)
+                st.plotly_chart(fig_paths, use_container_width=True)
+
+                # 文本展示
+                from src.retrieval.causal_path_retriever import CausalPathRetriever
+                with st.expander("查看路径详情", expanded=False):
+                    for i, p in enumerate(paths[:10], 1):
+                        nodes = p.get("node_names", [])
+                        rels = p.get("rel_types", [])
+                        chain = " → ".join(nodes)
+                        st.markdown(f"**路径 {i}** (深度{len(nodes)-1}): {chain}")
+            else:
+                st.info(f"'{path_entity}' 暂无关联的因果路径。")
 
 elif page == ":material/settings: 系统管理":
     st.title(":material/settings: 系统管理")

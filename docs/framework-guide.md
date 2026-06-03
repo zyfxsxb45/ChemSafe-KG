@@ -1,10 +1,8 @@
 # ChemSafe-KG 项目框架说明文档
 
 > **项目**：ChemSafe-KG：基于大模型驱动的化工安全事故知识图谱构建与因果推理问答系统  
-<<<<<<< HEAD
-> **框架版本**：v0.4.1（批量抽取含 SQLite 双写入，30 条真实事故 QA 实测验证通过）  
-> **编写时间**：2026-05-21（最后修订）
->>>>>>> 2e7868d (docs: 更新说明文件 (v0.4.1))
+> **框架版本**：v0.5.0（200 份事故数据 + 统计仪表盘 + 因果路径可视化 + 多源融合就绪）  
+> **编写时间**：2026-06-04（最后修订）
 
 ---
 
@@ -111,10 +109,9 @@ ChemSafe-KG/
 ├── scripts/                        # 工具脚本
 │   ├── init_db.py                  # 数据库初始化
 │   ├── seed_data.py                # 种子数据插入（含 LLM 抽取入库）
-│   ├── run_demo_pipeline.py        # ★ 端到端演示流水线（核心）
-│   ├── run_extraction_pipeline.py  # ★ 批量知识抽取流水线（已实现）
-│   ├── init_db.py                  # 数据库初始化
-│   └── seed_data.py                # 种子数据插入（含 LLM 抽取入库）
+│   ├── run_demo_pipeline.py        # ★ 端到端演示流水线
+│   ├── run_extraction_pipeline.py  # ★ 批量知识抽取流水线
+│   └── enrich_data.py              # ★ 数据充实（化学品+气象+融合视图）
 │
 ├── data/                           # 数据目录
 │   ├── raw/                        #   原始数据（.gitkeep 占位）
@@ -141,38 +138,28 @@ ChemSafe-KG/
 
 | 模块 | 文件 | 实现状态 | 说明 |
 |------|------|---------|------|
-| 事故报告爬虫 | `report_crawler.py` | ✅ **已实现** | `fetch_report_list()` 支持 mem.gov.cn 历史上危化品事故栏目，94 个月度汇编页，2000+ 起事故；CSB 列表页基础解析 |
-| 化学品API | `chemical_api.py` | ✅ 已实现 | `ChemicalPropertyFetcher`，20 种危化品，PubChem PUG REST API（无需 Key），含 CAS 号查询 |
-| 气象数据 | `weather_fetcher.py` | ✅ 已实现 | `WeatherDataFetcher`，Open-Meteo API（免费，无需 Key），含中文地点坐标映射 |
-| PDF解析 | `pdf_parser.py` | ❌ 待填充 | pdfplumber 集成待实现，扫描 PDF 需 OCR |
-| 文本清洗 | `text_cleaner.py` | ⏳ 骨架 | 空白规范化和分块已完成，页眉页脚去除和脱敏待补充 |
-| 数据融合 | `data_merger.py` | ⏳ 骨架 | 接口定义完成，融合逻辑待实现 |
+| 事故报告爬虫 | `report_crawler.py` | ✅ **已实现** | 200 份 mem.gov.cn 事故报告已采集 |
+| 化学品API | `chemical_api.py` | ✅ 已实现 | 29 种危化品物性（PubChem via pubchempy） |
+| 气象数据 | `weather_fetcher.py` | ✅ 已实现 | Open-Meteo，免费无需 Key |
+| PDF解析 | `pdf_parser.py` | ⏳ 基础实现 | pdfplumber 单文件可解析，未接入批量流水线 |
+| 文本清洗 | `text_cleaner.py` | ✅ 已实现 | 空白规范化、标点标准化、页眉页脚去除、PII 脱敏、智能分段 |
+| 数据融合 | `data_merger.py` | ✅ 已实现 | 事故-化学品关联 + 气象关联 + 统一视图构建 |
 
-#### TODO 清单（更新于 v0.4.0）
+#### TODO 清单（更新于 v0.5.0）
 
 爬虫模块 ✅ 已实现：
-- [x] **实现 mem.gov.cn 列表页解析**：5 页列表页，94 条月度汇编链接
-- [x] **实现月度详情页事故提取**：逐段扫描 `<div class="cont">`，用特征区分章节/分类/事故标题，提取独立事故及其根因分析
-- [x] **实现 URL 正确拼接**：使用 `urljoin()` 处理相对路径 `../202604/...`
-- [x] **实现批量限制**：`max_accidents` 参数控制提取量，达到目标提前停止
-- [x] **实现 CSB 列表页解析**：CSS 选择器匹配调查卡片（requests 降级）
-- [x] **实现文件保存**：自动去除元信息头部，保存为 UTF-8 编码的 .txt 文件
-- [x] **实现批量抽取流水线**：`scripts/run_extraction_pipeline.py` 支持目录批量 → LLM 抽取 → Neo4j 入库
+- [x] mem.gov.cn 列表页解析（95 条月度汇编）
+- [x] 月度详情页事故提取（逐段扫描，特征区分）
+- [x] URL 正确拼接（urljoin 处理相对路径）
+- [x] 批量限制（max_reports 参数）
+- [x] CSB 列表页解析（requests 降级）
+- [x] 文件保存为 UTF-8 .txt
+- [x] 批量抽取流水线（.txt → LLM → Neo4j + SQLite）
 
 仍待完成：
-- [ ] **实现爬虫页面解析**：`report_crawler.py` 中其他数据源（ciedu.com.cn 502 不可达，ichemsafe.com 需登录）
-  - P2: `https://www.ichemsafe.com` — ChemSafe 事故案例库
-  - P2: `https://www.ntsb.gov` — NTSB 事故调查
-  - P2: `https://emars.jrc.ec.europa.eu` — eMARS 欧盟事故数据库
-- [ ] **实现报告列表解析逻辑**：`fetch_report_list()` 需要基于 BeautifulSoup 实现 HTML 解析（各网站结构需单独分析）
-- [ ] **实现 PDF 下载**：`download_report()` 需要处理 HTTP 文件流下载
-- [x] **填写 PubChem API 调用**（已实现）：`fetch_from_pubchem()` 使用 PubChem PUG REST API（无需 API Key），可获取分子量、SMILES 等基础属性
-- [ ] **填写 EPA API 调用**：`fetch_from_epa()` 需要注册免费 API Key 后实现
-- [x] **确定气象数据源**（已选定）：Open-Meteo `https://open-meteo.com`（免费，无需 API Key，历史数据自1940年），已在 `weather_fetcher.py` 中实现
-- [ ] **扩充化学品清单**：`TARGET_CHEMICALS` 已扩充至 20 种含 CAS 号的化学品
-- [ ] **实现 PDF 文字提取**：`pdf_parser.py` 需要集成 pdfplumber 的 extract_text()
-- [ ] **实现扫描 PDF 的 OCR**：为扫描版报告集成 Tesseract 或 PaddleOCR
-- [ ] **完善文本清洗规则**：`clean_report_text()` 需要添加页眉页脚去除、敏感信息脱敏
+- [ ] 其他数据源接入（ciedu.com.cn 502、ichemsafe.com 需登录）
+- [ ] 扫描 PDF OCR（PaddleOCR/Tesseract 集成）
+- [ ] EPA CompTox API 接入（需注册免费 Key）
 
 ---
 
@@ -200,15 +187,13 @@ Prompt 设计示例已在 `prompt_templates.py` 中完整定义，包含：
 
 #### TODO 清单
 
-- [x] **【关键】配置 LLM API Key**（已完成）：DeepSeek `deepseek-v4-flash`（已验证可调用）
-- [x] **测试 LLM 连接**（已验证）：`chat()` 和 `chat_json()` 均可正常返回
-- [ ] **Prompt 迭代优化**：用真实事故报告测试 Prompt，调整措辞提高抽取质量
-- [ ] **添加 Few-shot 示例**：在 Prompt 模板中加入 1-2 个完整的抽取示例
-- [ ] **实现分段抽取合并**：`extract_from_text()` 需要处理超长文本的分段-合并策略
-- [ ] **并发抽取**：`extract_batch()` 可改用 asyncio 并发调用加速
-- [ ] **抽取结果去重**：`convert_to_triples()` 需要同义实体合并逻辑
-- [ ] **实现多模态 API 调用**：`multimodal_parser.py` 需要集成 DeepSeek-Vision 或 GPT-4V
-- [ ] **结果验证规则完善**：confusion matrix 级别的质量评估
+- [x] LLM API Key 已配置：DeepSeek `deepseek-v4-flash`
+- [x] LLM 连接测试通过：`chat()` 和 `chat_json()` 正常
+- [x] Prompt Chain 已验证：5 类实体 / 3 类关系 + Few-shot 示例
+- [x] 批量抽取通过：200 份报告，174 成功，995 条三元组
+- [ ] PDF 分段抽取合并：超长报告的分段-合并策略
+- [ ] 并发抽取：asyncio 加速
+- [ ] 同义实体合并：抽取结果去重
 
 ---
 
@@ -229,12 +214,12 @@ Prompt 设计示例已在 `prompt_templates.py` 中完整定义，包含：
 
 #### TODO 清单
 
-- [x] **【关键】安装并启动 Neo4j**（已完成）：Neo4j Community 5.26.25 @ `D:\Program Files\neo4j-community-5.26.25`
-- [x] **【关键】配置 Neo4j 连接**（已完成）：`.env` 中 `bolt://localhost:7687`，密码 `chemsafe123`
-- [x] **实现数据库索引创建**（已完成）：`schema_manager.py` 中的 `create_index_constraints()` 现会实际执行 Cypher
-- [ ] **实现节点去重**：`batch_create_triples()` 需要检查节点是否存在再创建（已建 UNIQUE 约束，违反时会抛异常）
-- [ ] **完善 ORM 模型**：`relational_db.py` 中的字段类型和约束需要根据实际数据调整
-- [ ] **实现跨源链接**：`data_linker.py` 需要实现 Neo4j↔PostgreSQL 的数据联动
+- [x] Neo4j 5.26.25 已安装运行
+- [x] Neo4j 连接已配置（bolt://localhost:7687）
+- [x] 数据库索引/约束已创建（UNIQUE 约束防重复节点）
+- [x] ORM 模型完整：AccidentRecord + ChemicalProperty + WeatherRecord
+- [x] 批量写入已验证：995 条三元组成功入库
+- [ ] 跨源链接完善：Neo4j↔SQLite 数据联动（data_linker.py）
 
 ---
 
@@ -255,12 +240,12 @@ Prompt 设计示例已在 `prompt_templates.py` 中完整定义，包含：
 
 #### TODO 清单
 
-- [x] **实现因果路径检索**（已完成）：`CausalPathRetriever.retrieve()` 和 `find_causal_paths()` 均可实际执行 Cypher 查询
-- [x] **实现上下文格式化**（已完成）：`format_context()` 将路径数据格式化为结构化的文本因果链
-- [ ] **实现 jieba 分词集成**：`query_analyzer._extract_entities()` 需要用 jieba 分词 + 自定义化工词典
-- [ ] **扩充意图关键词**：`INTENT_KEYWORDS` 需要根据更多查询场景扩充
-- [ ] **实现模糊实体匹配**：`entity_linker.link_entities()` 需要实现精确→模糊→同义词三级匹配策略
-- [ ] **完善 Cypher 模板**：`cypher_generator.py` 需要覆盖因果链、风险因素、缓解措施、统计等多种查询类型
+- [x] 因果路径检索可执行 Cypher 查询
+- [x] 上下文格式化（结构化的因果链文本）
+- [x] jieba 分词集成 + 实体提取
+- [x] 三级实体匹配：精确 → 包含 → 嵌入语义（sentence-transformers）
+- [x] query_analyzer 意图检测 + 关键词提取
+- [ ] cypher_generator 查询模板完善（mitigation/statistics 类型）
 
 ---
 
@@ -280,12 +265,11 @@ Prompt 设计示例已在 `prompt_templates.py` 中完整定义，包含：
 
 #### TODO 清单
 
-- [x] **【关键】集成 LLM 调用**（已完成）：`answer_generator.generate()` 已验证可通过 DeepSeek API 生成回答
-- [ ] **完善约束生成 Prompt**：`context_builder.GRAPH_RAG_SYSTEM_PROMPT` 需要细化约束规则
-- [ ] **实现引用来源标注**：在生成答案时标注每条陈述对应的因果路径来源
-- [ ] **实现上下文窗口管理**：当检索结果超过 LLM 上下文限制时进行截断或摘要
-- [ ] **实现全文检索降级**：`fallback_handler.text_search_fallback()` 需要构建文本倒排索引
-- [ ] **添加答案质量评估**：事实正确性自动校验（如检查生成的实体是否在 KG 中存在）
+- [x] LLM 答案生成已验证（DeepSeek API + Graph RAG 约束）
+- [x] 降级处理：LLM 失败时返回原始因果路径
+- [ ] 答案引用来源标注：标注每条陈述对应的因果路径
+- [ ] 上下文窗口管理：超长检索结果截断/摘要
+- [ ] 全文检索降级：文本倒排索引
 
 ---
 
@@ -306,12 +290,11 @@ Prompt 设计示例已在 `prompt_templates.py` 中完整定义，包含：
 
 #### TODO 清单
 
-- [x] **实现问答界面交互**（已完成）：`app.py` 问答页面可实时连接 Neo4j，调用 QA 流水线生成回答
-- [ ] **完善 KG 可视化**：`prepare_vis_data()` 的节点颜色、大小、标签需要优化
-- [ ] **实现 Neo4j→vis 转换**：`convert_neo4j_to_vis()` 需要实际解析 Neo4j 路径对象
-- [ ] **填充统计图表**：`stats_dashboard.py` 中的各图表方法需要实际数据
-- [ ] **添加数据管理功能**：系统管理页面的数据流水线控制功能
-- [ ] **UI/UX 优化**：布局、响应式、加载状态等
+- [x] Streamlit 问答页面：实时连接 Neo4j，调用 QA 流水线
+- [x] 统计仪表盘：8 种图表（trends/pie/bar/scatter/sankey/location）
+- [x] 因果路径可视化：单条/多条路径的有向图渲染，集成到图谱浏览页
+- [x] KG 全局可视化：streamlit-agraph 渲染，节点类型着色
+- [ ] 节点度中心性调节大小 + 交互式下钻
 
 ---
 
@@ -370,49 +353,49 @@ pipeline.py
 
 #### 🔴 P0 — 必须优先完成（项目可运行的基础）
 
-| 编号 | 待办项 | 涉及文件 | 预估工作量 |
-|------|--------|---------|-----------|
-| 1 | 填写 LLM API Key（DeepSeek / ChatGLM） | `.env` | ✅ 已完成 |
-| 2 | 安装并启动 Neo4j 数据库 | 环境配置 | ✅ 已完成 (5.26.25) |
-| 3 | 填写 Neo4j 连接信息 | `.env` | ✅ 已完成 |
-| 4 | 测试 LLM API 连通性 | `src/extraction/llm_client.py` | ✅ 已完成 |
-| 5 | 测试 Neo4j 连接 | `src/storage/neo4j_client.py` | ✅ 已完成 |
-| 6 | 测试 Python 依赖安装 | `requirements.txt` | 30分钟 |
+| 编号 | 待办项 | 状态 |
+|------|--------|------|
+| 1 | LLM API Key（DeepSeek） | ✅ 已完成 |
+| 2 | Neo4j 安装启动 | ✅ 已完成 (5.26.25) |
+| 3 | Neo4j 连接配置 | ✅ 已完成 |
+| 4 | LLM API 连通性测试 | ✅ 已完成 |
+| 5 | Neo4j 连接测试 | ✅ 已完成 |
+| 6 | Python 依赖安装 | ✅ 已完成 |
 
 #### 🟡 P1 — 重要功能（核心业务逻辑）
 
-| 编号 | 待办项 | 涉及文件 | 预估工作量 |
-|------|--------|---------|-----------|
-| 7 | 实现爬虫页面解析 | `src/acquisition/report_crawler.py` | ✅ 已完成（mem.gov.cn 94页，2000+事故） |
-| 8 | 实现 PDF 文本提取 | `src/preprocessing/pdf_parser.py` | 1-2小时 |
-| 9 | 实现 LLM 实体抽取 | `src/extraction/entity_extractor.py` | ✅ 已完成（样本验证通过） |
-| 10 | 实现三元组→Neo4j写入 | `src/storage/neo4j_client.py` | ✅ 已完成（MERGE写入） |
-| 11 | 实现 Cypher 查询生成 | `src/retrieval/cypher_generator.py` | 2小时 |
-| 12 | 实现问答流水线串联 | `src/qa/answer_generator.py` | ✅ 已完成（Streamlit集成） |
-| 13 | 实现前端问答交互 | `app.py` | ✅ 已完成（实时查询Neo4j） |
+| 编号 | 待办项 | 状态 |
+|------|--------|------|
+| 7 | 爬虫页面解析 | ✅ 已完成（mem.gov.cn 200 份） |
+| 8 | PDF 文本提取 | ⏳ 基础实现，未接入批量 |
+| 9 | LLM 实体抽取 | ✅ 已完成（174/200 成功） |
+| 10 | 三元组→Neo4j 写入 | ✅ 已完成 |
+| 11 | Cypher 查询生成 | ⏳ 基础实现，待完善 |
+| 12 | 问答流水线串联 | ✅ 已完成 |
+| 13 | 前端问答交互 | ✅ 已完成 |
 
 #### 🟢 P2 — 增强功能（提升质量和体验）
 
-| 编号 | 待办项 | 涉及文件 | 预估工作量 |
-|------|--------|---------|-----------|
-| 14 | 扩充爬虫数据源 | `report_crawler.py` | ✅ 已完成（9个数据源） |
-| 15 | 实现化学品物性 API | `src/acquisition/chemical_api.py` | ✅ 已完成（PubChem） |
-| 16 | 实现气象数据获取 | `src/acquisition/weather_fetcher.py` | ✅ 已完成（Open-Meteo） |
-| 17 | 实现扫描 PDF OCR | `src/preprocessing/pdf_parser.py` | 3-4小时 |
-| 18 | 数据集 EDA 与可视化 | `src/visualization/stats_dashboard.py` | 2小时 |
-| 19 | 知识图谱可视化（Web） | `src/visualization/kg_visualizer.py` | 2-3小时 |
-| 20 | Prompt 模板迭代优化 | `src/extraction/prompt_templates.py` | 3-4小时 |
+| 编号 | 待办项 | 状态 |
+|------|--------|------|
+| 14 | 扩充爬虫数据源 | ✅ 已完成（9 个 URL） |
+| 15 | 化学品物性 API | ✅ 已完成（29 种，PubChem） |
+| 16 | 气象数据获取 | ✅ 已完成（Open-Meteo） |
+| 17 | 扫描 PDF OCR | ❌ 未实现 |
+| 18 | 统计仪表盘 | ✅ 已完成（stats_dashboard.py） |
+| 19 | KG 可视化 | ✅ 已完成（streamlit-agraph） |
+| 20 | Prompt 模板优化 | ✅ 已完成（Few-shot + 5 规则） |
 
 #### 🔵 P3 — 锦上添花（可选加分项）
 
-| 编号 | 待办项 | 涉及文件 | 预估工作量 |
-|------|--------|---------|-----------|
-| 21 | 多模态 P&ID 图识别 | `src/extraction/multimodal_parser.py` | 4-5小时 |
-| 22 | 全文检索降级方案 | `src/qa/fallback_handler.py` | 1-2小时 |
-| 23 | 多源数据融合分析 | `src/preprocessing/data_merger.py` | 2-3小时 |
-| 24 | Docker 部署配置 | `Dockerfile` | 1-2小时 |
-| 25 | 单元测试编写 | `tests/` | 3-4小时 |
-| 26 | 事故风险预测（ML） | 新增 `src/analysis/` | 4-6小时 |
+| 编号 | 待办项 | 状态 |
+|------|--------|------|
+| 21 | 多模态 P&ID 图识别 | ❌ 未实现 |
+| 22 | 全文检索降级 | ⏳ 骨架已定义 |
+| 23 | 多源数据融合分析 | ✅ 已完成（DataMerger） |
+| 24 | Docker 部署配置 | ❌ 未实现 |
+| 25 | 单元测试 | ❌ 未实现 |
+| 26 | 事故风险预测（ML） | ❌ 未实现 |
 
 ### 5.2 外部数据源与资源清单
 
@@ -480,16 +463,19 @@ pipeline.py
 #### ✅ 当前状态总览
 
 | 资源/功能 | 用途 | 当前状态 |
-|-----------|------|---------|
+|-----------|------|----------|
 | DeepSeek API Key / deepseek-v4-flash | LLM 抽取 + 问答生成 | ✅ 已配置并验证 |
 | Neo4j 5.26.25 | 图数据库 | ✅ 已安装运行，Schema 已初始化 |
 | 端到端流水线 (`run_demo_pipeline.py`) | 样本数据抽取→存储→检索→问答 | ✅ 已验证通过 |
 | Streamlit Web 问答页面 | 自然语言交互 | ✅ 可实时查询 Neo4j |
 | 化学品物性 API (PubChem) | 物性数据获取 | ✅ 已实现（无需 Key） |
 | 气象数据 API (Open-Meteo) | 天气数据获取 | ✅ 已实现（无需 Key） |
-| 事故数据源 URL | 爬虫配置 | ✅ 已填入 8 个网址 |
-| 爬虫页面解析逻辑 | HTML 列表提取 + PDF 下载 | ❌ 待实现 |
-| 真实事故报告数据 | 构建完整 KG | ❌ 未采集 |
+| 事故数据源 URL | 爬虫配置 | ✅ 8 个网址已填入 |
+| mem.gov.cn 爬虫 | HTML 列表提取 + 事故解析 | ✅ 200+ 份报告已采集 |
+| 真实事故报告数据 | 构建完整 KG | ✅ 200 份，批量抽取中 |
+| 统计仪表盘 | 事故多维分析 | ✅ 已实现（trends/pie/bar/sankey） |
+| 因果路径可视化 | 路径有向图渲染 | ✅ 已实现（单条/多条/Neo4j集成） |
+| 多源数据融合 | 事故-化学品-气象关联 | ✅ 已实现（DataMerger + enrich_data） |
 | EPA CompTox API (可选) | 化学品补充数据 | ❌ 未获取 Key |
 
 ---
@@ -567,8 +553,14 @@ python -c "from py2neo import Graph; g=Graph('bolt://localhost:7687',auth=('neo4
 - ✅ **因果路径查询**：`find_causal_paths()` 可实际执行 Cypher 查询
 - ✅ **上下文格式化**：`format_context()` 可将路径转换为结构化文本
 - ✅ **端到端流水线**：`scripts/run_demo_pipeline.py` 已验证通过
-- ✅ **Streamlit 问答**：`app.py` 可实时查询 Neo4j 并生成回答
-- ⏳ **PDF 解析**：`pdf_parser.py` 待集成 pdfplumber
+- ✅ **Pipeline CLI**：`pipeline.py` 接入所有真实模块（acquisition/extraction/enrich/qa）
+- ✅ **化学品物性**：29 种危化品物性（PubChem via pubchempy）
+- ✅ **统计仪表盘**：`stats_dashboard.py` 完整实现（8 种图表类型）
+- ✅ **因果路径可视化**：`causal_path_viz.py` 支持单条/多条路径的有向图渲染
+- ✅ **多源数据融合**：`data_merger.py` 实现事故-化学品-气象关联逻辑
+- ✅ **统一融合视图**：200 行 × 19 列，化学品覆盖 8.5%
+- ✅ **QA 验证通过**：有限空间→中毒窒息问题给出高质量因果推理回答
+- ⏳ **PDF 解析**：`pdf_parser.py` 已有基础实现，待集成到批量流水线
 - ❌ **其他数据源爬虫**：ciedu.com.cn(502)、ichemsafe.com(需登录) 待实现
 
 ### 7.2 关键风险
@@ -582,12 +574,12 @@ python -c "from py2neo import Graph; g=Graph('bolt://localhost:7687',auth=('neo4
 
 ### 7.3 推荐的开发顺序
 
-1. **第9-10周（已完成）**：环境配置 ✅ | 数据源URL配置 ✅ | 爬虫实现 ✅
-2. **第11周**：实现 PDF 解析 → 爬取更多数据 → EDA
-3. **第12-13周（已完成）**：LLM 抽取流水线 ✅ | Neo4j 入库 ✅ | 批量抽取脚本 ✅
-4. **第14周（已完成框架）**：Graph RAG 检索 ✅ | 问答生成 ✅ | 前端串联 ✅
-5. **第15周**：爬虫采集真实数据 → 扩充 KG → 可视化优化 → 演示准备
-6. **第16周**：报告撰写 → 代码整理 → 部署配置
+1. **第9-10周（已完成）**：环境配置 ✅ | 技术选型 ✅
+2. **第11周（已完成）**：爬虫实现 ✅ | mem.gov.cn 200 份报告 ✅
+3. **第12-13周（已完成）**：LLM 抽取 ✅ | Neo4j 入库 ✅ | 批量流水线 ✅
+4. **第14周（已完成）**：Graph RAG 检索 ✅ | 问答生成 ✅ | 前端串联 ✅
+5. **第15周（已完成）**：数据扩充 ✅ | 统计仪表盘 ✅ | 因果路径可视化 ✅ | 多源融合 ✅
+6. **第16周（当前）**：文档完善 → QA 增强 → 演示准备 → 课程报告
 
 ---
 

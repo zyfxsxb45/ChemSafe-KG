@@ -183,6 +183,7 @@ class Neo4jClient:
             MATCH path = (start)-[:leads_to|involves|mitigated_by*0..{max_depth}]->(mid {{name: $name}})-[:leads_to|involves|mitigated_by*0..{max_depth}]->(end)
             WHERE length(path) > 0
             RETURN [n in nodes(path) | n.name] AS node_names,
+                   [n in nodes(path) | labels(n)[0]] AS node_types,
                    [r in relationships(path) | type(r)] AS rel_types,
                    length(path) AS path_len
             ORDER BY path_len DESC

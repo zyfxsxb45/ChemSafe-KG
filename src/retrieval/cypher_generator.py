@@ -46,14 +46,36 @@ class CypherGenerator:
         """
 
     def _mitigation_query(self, entity_name: str) -> str:
-        """生成缓解措施查询"""
-        # TODO: 查询从某实体出发可用的缓解措施
-        return ""
+        """生成缓解措施查询：查找导致该后果的异常状态及对应的缓解措施"""
+        return f"""
+        MATCH (cause)-[:leads_to*1..3]->(target {{name: '{entity_name}'}})
+        OPTIONAL MATCH (cause)-[:mitigated_by]->(mitigation:Mitigation)
+        RETURN cause.name AS risk, mitigation.name AS measure, type(mitigation) AS mitigation_type
+        LIMIT 10
+        """
 
     def _statistics_query(self, constraints: Dict) -> str:
-        """生成统计分析查询"""
-        # TODO: 多维度聚合统计
-        return ""
+        """生成统计分析查询：按约束条件聚合"""
+        group_by = constraints.get("group_by", "type")
+        limit = constraints.get("limit", 20)
+        if group_by == "type":
+            return f"""
+            MATCH (n)
+            WHERE size(labels(n)) > 0
+            WITH labels(n)[0] AS node_type, count(*) AS cnt
+            WHERE node_type IN ['Equipment','Material','Abnormal_Condition','Consequence','Mitigation','Accident']
+            RETURN node_type, cnt
+            ORDER BY cnt DESC
+            LIMIT {limit}
+            """
+        elif group_by == "relation":
+            return f"""
+            MATCH ()-[r]->()
+            RETURN type(r) AS rel_type, count(*) AS cnt
+            ORDER BY cnt DESC
+            LIMIT {limit}
+            """
+        return f"MATCH (n) RETURN labels(n)[0] AS type, count(*) AS cnt ORDER BY cnt DESC LIMIT {limit}"
 
     def _fallback_query(self, entities: List[str]) -> str:
         """兜底查询"""

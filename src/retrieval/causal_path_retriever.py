@@ -37,21 +37,7 @@ class CausalPathRetriever:
     def format_context(self, paths: List[Dict]) -> str:
         """
         将图查询结果格式化为 LLM 可读的文本上下文。
-
-        输出格式:
-          检索到 X 条因果链：
-
-          路径 1: 设备故障 → 异常状态 → 事故后果
-            - 冷却水循环泵
-            ↓ leads_to
-            - 储罐温度上升 (Abnormal_Condition)
-            ...
-
-        Args:
-            paths: CausalPathRetriever.retrieve() 返回的路径列表
-
-        Returns:
-            格式化后的因果链文本
+        包含节点类型标签，便于 LLM 理解因果结构。
         """
         if not paths:
             return "未检索到相关因果路径。"
@@ -59,18 +45,29 @@ class CausalPathRetriever:
         context_parts = []
         context_parts.append(f"检索到 {len(paths)} 条因果链：\n")
 
+        # 实体类型中文映射
+        type_cn = {
+            "Equipment": "设备", "Material": "物料",
+            "Abnormal_Condition": "异常状态", "Consequence": "事故后果",
+            "Mitigation": "应急措施", "Accident": "事故",
+        }
+
         for i, path in enumerate(paths, 1):
             node_names = path.get("node_names", [])
             rel_types = path.get("rel_types", [])
+            node_types = path.get("node_types", [])
 
             if not node_names:
                 continue
 
-            context_parts.append(f"【路径 {i}】(长度 {len(node_names)-1} 步)")
+            context_parts.append(f"【路径 {i}】(深度 {len(node_names)-1} 步)")
             for j in range(len(node_names)):
-                context_parts.append(f"  ● {node_names[j]}")
+                ntype = node_types[j] if j < len(node_types) else ""
+                type_tag = f" [{type_cn.get(ntype, ntype)}]" if ntype else ""
+                context_parts.append(f"  ● {node_names[j]}{type_tag}")
                 if j < len(rel_types):
-                    context_parts.append(f"     ↓ {rel_types[j]}")
-            context_parts.append("")  # 空行分隔
+                    rel_cn = {"leads_to": "导致", "involves": "涉及", "mitigated_by": "被缓解"}
+                    context_parts.append(f"     ↓ {rel_cn.get(rel_types[j], rel_types[j])}")
+            context_parts.append("")
 
         return "\n".join(context_parts)

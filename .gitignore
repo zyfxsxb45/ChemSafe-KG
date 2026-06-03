@@ -49,3 +49,6 @@ logs/
 # ── Notebook 临时输出 ──
 .ipynb_checkpoints/
 .aider*
+
+# Temp scripts
+_*.py

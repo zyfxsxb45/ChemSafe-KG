@@ -25,29 +25,46 @@ class ChemicalPropertyFetcher:
 
     # ─── 目标化学品清单 (含 CAS 号) ────────────────────────────────────────
     # 来源: 常见化工事故涉及化学品, 按事故频次排序
-    # TODO: 根据实际采集到的事故报告扩充此清单
+    # 扩展自 200+ 份 mem.gov.cn 事故报告的化学品出现频率分析
     TARGET_CHEMICALS = [
-        # 化学品名         CAS号             中文名
-        ("acrylonitrile",   "107-13-1"),  # 丙烯腈
-        ("benzene",         "71-43-2"),   # 苯
-        ("toluene",         "108-88-3"),  # 甲苯
-        ("xylene",          "1330-20-7"), # 二甲苯
-        ("methanol",        "67-56-1"),   # 甲醇
-        ("ethylene oxide",  "75-21-8"),   # 环氧乙烷
-        ("chlorine",        "7782-50-5"), # 氯气
-        ("ammonia",         "7664-41-7"), # 氨
-        ("hydrogen sulfide","7783-06-4"), # 硫化氢
-        ("vinyl chloride",  "75-01-4"),   # 氯乙烯
-        ("propylene",       "115-07-1"),  # 丙烯
-        ("butadiene",       "106-99-0"),  # 丁二烯
-        ("styrene",         "100-42-5"),  # 苯乙烯
-        ("formaldehyde",    "50-00-0"),   # 甲醛
-        ("phenol",          "108-95-2"),  # 苯酚
-        ("acetone",         "67-64-1"),   # 丙酮
-        ("sulfuric acid",   "7664-93-9"), # 硫酸
-        ("nitric acid",     "7697-37-2"), # 硝酸
-        ("carbon monoxide", "630-08-0"),  # 一氧化碳
-        ("hydrogen",        "1333-74-0"), # 氢气
+        # (英文名, CAS号, 中文名)
+        ("acrylonitrile",    "107-13-1",  "丙烯腈"),
+        ("benzene",          "71-43-2",   "苯"),
+        ("toluene",          "108-88-3",  "甲苯"),
+        ("xylene",           "1330-20-7", "二甲苯"),
+        ("methanol",         "67-56-1",   "甲醇"),
+        ("ethylene oxide",   "75-21-8",   "环氧乙烷"),
+        ("chlorine",         "7782-50-5", "氯气"),
+        ("ammonia",          "7664-41-7", "氨"),
+        ("hydrogen sulfide", "7783-06-4", "硫化氢"),
+        ("vinyl chloride",   "75-01-4",   "氯乙烯"),
+        ("propylene",        "115-07-1",  "丙烯"),
+        ("butadiene",        "106-99-0",  "丁二烯"),
+        ("styrene",          "100-42-5",  "苯乙烯"),
+        ("formaldehyde",     "50-00-0",   "甲醛"),
+        ("phenol",           "108-95-2",  "苯酚"),
+        ("acetone",          "67-64-1",   "丙酮"),
+        ("sulfuric acid",    "7664-93-9", "硫酸"),
+        ("nitric acid",      "7697-37-2", "硝酸"),
+        ("carbon monoxide",  "630-08-0",  "一氧化碳"),
+        ("hydrogen",         "1333-74-0", "氢气"),
+        # ── v0.5 扩展：高频事故化学品 ──
+        ("ethane",           "74-84-0",   "乙烷"),
+        ("ethylene",         "74-85-1",   "乙烯"),
+        ("acetylene",        "74-86-2",   "乙炔"),
+        ("propane",          "74-98-6",   "丙烷"),
+        ("hydrochloric acid", "7647-01-0", "盐酸/氯化氢"),
+        ("sodium hydroxide", "1310-73-2", "氢氧化钠"),
+        ("methyl isocyanate", "624-83-9",  "异氰酸甲酯"),
+        ("phosgene",         "75-44-5",   "光气"),
+        ("hydrogen cyanide", "74-90-8",   "氰化氢"),
+        ("sulfur dioxide",   "7446-09-5", "二氧化硫"),
+        ("ethanol",          "64-17-5",   "乙醇"),
+        ("ethyl acetate",    "141-78-6",  "乙酸乙酯"),
+        ("n-hexane",         "110-54-3",  "正己烷"),
+        ("cyclohexane",      "110-82-7",  "环己烷"),
+        ("aniline",          "62-53-3",   "苯胺"),
+        ("nitrobenzene",     "98-95-3",   "硝基苯"),
     ]
 
     # 关注物性字段 (PubChem CID 对应的属性名映射)
@@ -198,7 +215,7 @@ class ChemicalPropertyFetcher:
             DataFrame, columns = [chemical_name, cas_number, MolecularWeight, ...]
         """
         records = []
-        for chem_name, cas in self.TARGET_CHEMICALS:
+        for chem_name, cas, _cn in self.TARGET_CHEMICALS:
             logger.info(f"查询物性数据 [{len(records)+1}/{len(self.TARGET_CHEMICALS)}]: {chem_name}")
             data = self.fetch_from_pubchem(chem_name)
             if data:
