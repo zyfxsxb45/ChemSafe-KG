@@ -58,52 +58,75 @@ def get_graph_stats(neo4j):
 
 
 # 处理问答
+@st.cache_data(ttl=300)
+def _get_cached_entities(neo4j):
+    return neo4j.get_all_entity_names()
+
+
 def process_question(question, neo4j, retriever, qa):
     import jieba
     from src.retrieval.query_analyzer import QueryAnalyzer
     from src.retrieval.entity_linker import EntityLinker
 
-    entities = neo4j.get_all_entity_names()
+    entities = _get_cached_entities(neo4j)
     analyzer = QueryAnalyzer()
     linker = EntityLinker()
     analyzed = analyzer.analyze(question)
 
-    linked = linker.link_entities(analyzed.get("entities", []), neo4j)
-    matched_names = [item["name"] for item in linked if item.get("matched")]
-
-    # 降级匹配（按关键词命中数排序，同分时优先有因果路径的实体）
+    # ── 三层匹配并行执行，统一融合 ──
     words = [w for w in jieba.lcut(question) if len(w) >= 2]
-    scored = [(e, sum(1 for w in words if w in str(e))) for e in entities]
-    scored = [(e, s) for e, s in scored if s > 0]
-    scored.sort(key=lambda x: -x[1])
 
-    if not matched_names and not scored:
-        return "未在知识图谱中找到与问题相关的实体。", None
+    # L1: 精确/包含匹配
+    linked = linker.link_entities(analyzed.get("entities", []), neo4j)
+    l1_matched = [(item["name"], item.get("confidence", 1.0)) for item in linked if item.get("matched")]
 
-    # 取实体链接结果 + 关键词 Top 5，综合检索它们的因果路径
-    top_entities = []
-    for entity in matched_names:
-        if entity not in top_entities:
-            top_entities.append(entity)
-    for entity, _score in scored[:5]:
-        if entity not in top_entities:
-            top_entities.append(entity)
+    # L2: 关键词命中
+    l2_scored = []
+    for e in entities:
+        hits = sum(1 for w in words if w in str(e))
+        if hits > 0:
+            l2_scored.append((e, hits))
 
-    # 第三路：嵌入相似性匹配（补全词法盲区: 液氯→氯气等）
-    # 对整句和每个分词分别查询，合并去重
+    # L3: 嵌入语义匹配（与 L2 平等，不再仅是补充）
+    l3_scored = []
     try:
         embedder = get_embedder()
         embedder.load_or_build(entities)
-        embed_queries = [question] + [w for w in words]
-        for eq in embed_queries:
-            for r in embedder.find_similar(eq, top_k=3, threshold=0.4):
-                if r["name"] not in top_entities:
-                    top_entities.append(r["name"])
+        embed_queries = [question] + words
+        results = embedder.find_similar_multi(embed_queries, top_k=8, deduplicate=True)
+        l3_scored = [(r["name"], r["score"]) for r in results]
     except Exception:
-        pass  # 嵌入匹配失败不影响主流程
+        pass
+
+    # ── 统一融合: 综合三层分数 + 路径奖励 ──
+    # score = L1置信度×3 + L2命中数×1 + L3相似度×3 + 有因果路径的奖励×2
+    fused = {}  # entity_name -> total_score
+
+    for name, conf in l1_matched:
+        fused[name] = fused.get(name, 0) + conf * 3.0
+    for name, hits in l2_scored:
+        fused[name] = fused.get(name, 0) + hits * 1.0
+    for name, sim in l3_scored:
+        fused[name] = fused.get(name, 0) + sim * 3.0
+
+    # 路径奖励: 有出边的实体加分
+    if fused:
+        for name in list(fused.keys())[:30]:
+            try:
+                has_paths = neo4j.find_causal_paths(name, max_depth=1)
+                if has_paths:
+                    fused[name] += 2.0
+            except Exception:
+                pass
+
+    top_entities = sorted(fused.items(), key=lambda x: -x[1])[:12]
+    top_entity_names = [name for name, _ in top_entities]
+
+    if not top_entity_names:
+        return "未在知识图谱中找到与问题相关的实体。", None
 
     all_paths = []
-    for entity in top_entities[:8]:
+    for entity in top_entity_names[:8]:
         paths = retriever.retrieve(entity, max_depth=3)
         all_paths.extend(paths)
 
