@@ -2,8 +2,7 @@
 关系数据库操作模块
 
 管理事故主表、化学品物性表、气象数据表等结构化数据的存取。
-
-TODO [数据接入]: 关系数据库表结构需要根据实际数据建模确定
+表结构已根据实际 PubChem API 和 LLM 抽取结果确定。
 """
 import logging
 from typing import Optional
@@ -16,10 +15,9 @@ logger = logging.getLogger(__name__)
 
 # ─── ORM 模型定义 ──────────────────────────────────────────────────────────
 class AccidentRecord(Base):
-    """事故记录表"""
+    """事故记录表 — 字段已根据实际 LLM 抽取结果确定"""
     __tablename__ = "accidents"
 
-    # TODO [完善]: 根据实际数据设计字段
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String(500))
     date = Column(Date)

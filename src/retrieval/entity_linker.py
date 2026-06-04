@@ -13,8 +13,8 @@ class EntityLinker:
     """实体链接器"""
 
     def __init__(self):
-        # TODO [完善]: 加载知识图谱实体索引
-        self.entity_index: Dict[str, str] = {}  # entity_name → node_type
+        # 实体索引由 link_entities() 动态从 Neo4j 加载
+        self.entity_index: Dict[str, str] = {}
 
     def link_entities(
         self, entity_names: List[str], neo4j_client

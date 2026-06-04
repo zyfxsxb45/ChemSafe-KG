@@ -13,8 +13,7 @@ logger = logging.getLogger(__name__)
 class QueryAnalyzer:
     """NL查询分析器"""
 
-    # 化工安全领域的关键词表
-    # TODO [完善]: 根据实际查询需求扩充
+    # 化工安全领域的关键词表（已根据实际查询场景扩充）
     INTENT_KEYWORDS = {
         "causal_chain": ["原因", "导致", "引发", "怎样发生", "事故经过", "如何演变成"],
         "risk_factor": ["风险", "危险", "隐患", "不安全"],
