@@ -52,3 +52,6 @@ logs/
 
 # Temp scripts
 _*.py
+
+# Dataset release (large files, local only)
+data/release/
