@@ -245,7 +245,7 @@ def _extract_from_dir(input_dir: str, label: str):
         title = title_match.group(1).strip() if title_match else fpath.stem
 
         # E: 非事故 — 太短或几乎无关
-        if len(text) < 200:
+        if len(text) < 50:
             return []
         acc_kw = len(re.findall(r'事故|爆炸|泄漏|中毒|火灾|伤亡', text))
         if acc_kw < 5:
