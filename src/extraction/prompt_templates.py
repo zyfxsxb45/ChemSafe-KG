@@ -36,7 +36,8 @@ class PromptTemplates:
 4. 只抽取原文明确内容
 5. entity名≤15汉字,描述单一概念,不嵌入因果链(如写"温度升高"不写"泵故障导致温度升高")
 6. Equipment/Material优先识别,再用Abnormal_Condition描述其异常
-7. 扫描"防范措施/安全建议/应急处置/教训"段落,每项措施独立为Mitigation,不合并为笼统表述"""
+7. ⚠️ 人员操作分离: 涉及操作工的动作,先提取被操作的Equipment,再提取Abnormal_Condition描述异常动作。禁止将人员与动作合并为entity(如"操作工误开阀门"✗ → Equipment"阀门"→leads_to→Abnormal_Condition"误开阀门"✓)。无具体设备时只提取异常动作(如"违章作业")
+8. 扫描"防范措施/安全建议/应急处置/教训"段落,每项措施独立为Mitigation,不合并为笼统表述"""
 
     # ─── Few-shot 示例 ────────────────────────────────────────────────
     FEW_SHOT_EXAMPLE = """
@@ -81,7 +82,12 @@ class PromptTemplates:
 - Material「丙烯腈」在首次出现时独立抽取，后续 Abnormal_Condition 中可引用
 - 每一项 Mitigation 独立成实体（「泡沫灭火系统」与「罐区喷淋」分开），不合并
 - Entity 名均不超过 15 个汉字，且每个 entity 只描述单一事实
-- 因果链从 Equipment 故障开始，经过 5 步 Abnormal_Condition，最终到 Consequence，无跳跃"""
+- 因果链从 Equipment 故障开始，经过 5 步 Abnormal_Condition，最终到 Consequence，无跳跃
+
+人员操作分离示例：
+报告"操作工误将甲醇阀门打开"的正确抽取：
+  Equipment"甲醇阀门" → leads_to → Abnormal_Condition"误开阀门"
+禁止写法：Abnormal_Condition"操作工误将甲醇阀门打开"（人员与设备合并）"""
 
     # ─── 抽取指令模板 ──────────────────────────────────────────────────
     EXTRACTION_TEMPLATE = """请分析以下事故报告片段，提取完整的因果事件链。
@@ -98,7 +104,8 @@ class PromptTemplates:
 5. entity 和 type 字段必须成对出现
 6. ⚠️ 重要：仔细扫描文中的「防范措施」「安全建议」「教训」「整改要求」「应急处置」等段落，将每项具体措施作为独立的 Mitigation 实体抽取（如「佩戴空气呼吸器」「气体检测合格后方可进入」「切断进料」），不要合并为「应急处置」等笼统表述
 7. ⚠️ 实体原子化：每个 entity 名称不得超过 15 个汉字，必须描述单一概念。禁止将因果链嵌入 entity 名中（如「泵故障导致温度升高」✗ → 应拆为 Equipment「泵」→ leads_to → Abnormal_Condition「温度升高」✓）
-8. ⚠️ 设备物料优先：先识别所有 Equipment 和 Material 节点，再用 Abnormal_Condition 描述它们的异常行为。同一设备在链中复用必须保持 name 一致
+8. ⚠️ 人员操作分离：涉及操作人员的动作，先提取被操作的 Equipment，再提取 Abnormal_Condition 描述异常动作。禁止将人与动作合并为一个 entity（如「操作工误开阀门」✗ → Equipment「阀门」→ leads_to → Abnormal_Condition「误开阀门」✓）。无具体设备时只提取异常动作（如「违章作业」）
+9. ⚠️ 设备物料优先：先识别所有 Equipment 和 Material 节点，再用 Abnormal_Condition 描述它们的异常行为。同一设备在链中复用必须保持 name 一致
 
 输出 JSON 结构：
 {{
