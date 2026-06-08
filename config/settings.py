@@ -20,7 +20,7 @@ class LLMConfig:
     API_KEY: str = os.getenv("LLM_API_KEY", "")
     BASE_URL: str = os.getenv("LLM_BASE_URL", "https://api.deepseek.com/v1")
     MODEL: str = os.getenv("LLM_MODEL", "deepseek-chat")
-    MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "8192"))
+    MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "16384"))
     TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.1"))  # 低温度保证抽取一致性
 
 

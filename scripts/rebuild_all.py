@@ -302,17 +302,6 @@ def _extract_from_dir(input_dir: str, label: str):
 
         all_results = []
         for seg_idx, seg_text in enumerate(segments):
-            # 输入截断
-            if len(seg_text) > 2500:
-                truncated = seg_text[:2000]
-                safety_section = re.search(
-                    r'(防范措施|安全建议|应急处置|教训|整改要求|预防措施).{0,500}',
-                    seg_text[2000:]
-                )
-                if safety_section:
-                    truncated += "\n\n【防范措施段落】\n" + safety_section.group(0)
-                seg_text = truncated
-
             try:
                 result = extractor.extract_from_text(seg_text)
             except Exception:
