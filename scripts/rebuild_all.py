@@ -221,7 +221,7 @@ def _extract_from_dir(input_dir: str, label: str):
         logger.warning(f"  {label}: 无文件")
         return {"total": 0, "success": 0, "failed": 0, "triples": 0, "mitigation": 0}
 
-    logger.info(f"  {label}: {len(files)} 个文件 (20线程并发)")
+    logger.info(f"  {label}: {len(files)} 个文件 (200线程并发)")
 
     # 共享实例（LLMClient 线程安全）
     extractor = EntityExtractor()
@@ -334,7 +334,7 @@ def _extract_from_dir(input_dir: str, label: str):
         return all_results
 
     results = []
-    with ThreadPoolExecutor(max_workers=20) as executor:
+    with ThreadPoolExecutor(max_workers=200) as executor:
         futures = {executor.submit(_process_one, f): f for f in files}
         for i, future in enumerate(as_completed(futures)):
             batch = future.result()
