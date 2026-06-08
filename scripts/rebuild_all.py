@@ -206,7 +206,7 @@ def _extract_from_dir(input_dir: str, label: str):
     从目录批量抽取 → Neo4j + SQLite 双写（含 Accident 聚合节点）
 
     两阶段:
-      Phase 1 — 并发 LLM 抽取 (20 workers)
+      Phase 1 — 并发 LLM 抽取 (200 workers)
       Phase 2 — 串行写入 Neo4j + SQLite + Accident 节点
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
