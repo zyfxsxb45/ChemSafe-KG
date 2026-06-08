@@ -202,51 +202,103 @@ def _parse_meta(raw_text: str, fpath: Path):
 
 
 def _extract_from_dir(input_dir: str, label: str):
-    """从目录批量抽取 → Neo4j + SQLite 双写（含 Accident 聚合节点）"""
+    """
+    从目录批量抽取 → Neo4j + SQLite 双写（含 Accident 聚合节点）
+
+    两阶段:
+      Phase 1 — 并发 LLM 抽取 (4 workers)
+      Phase 2 — 串行写入 Neo4j + SQLite + Accident 节点
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     from src.extraction.entity_extractor import EntityExtractor
     from src.extraction.result_validator import ResultValidator
     from src.storage.neo4j_client import Neo4jClient
     from config.database import SessionLocal
     from src.storage.relational_db import AccidentRecord
 
-    neo4j = Neo4jClient()
-    neo4j.connect()
-    extractor = EntityExtractor()
-    validator = ResultValidator()
-
     files = sorted(Path(input_dir).glob("*.txt"))
     if not files:
         logger.warning(f"  {label}: 无文件")
         return {"total": 0, "success": 0, "failed": 0, "triples": 0, "mitigation": 0}
 
-    logger.info(f"  {label}: {len(files)} 个文件")
+    logger.info(f"  {label}: {len(files)} 个文件 (4线程并发)")
 
-    stats = {"total": 0, "success": 0, "failed": 0, "triples": 0, "mitigation": 0}
-    batch_triples, batch_maps = [], []
-    file_accidents = []  # 收集事故元信息，用于创建 Accident 节点
-
-    for i, fpath in enumerate(files):
+    # ═══════════════════════════════════════════════════════════
+    #  Phase 1: 并发 LLM 抽取
+    # ═══════════════════════════════════════════════════════════
+    def _process_one(fpath: Path):
+        """单个文件的 LLM 抽取（线程安全）"""
         raw = fpath.read_text(encoding='utf-8')
         text = re.split(r'={5,}', raw)[-1].strip() if '=====' in raw else raw
         if len(text) < 50:
-            continue
+            return None
 
-        stats["total"] += 1
+        # 输入截断
+        if len(text) > 2500:
+            truncated = text[:2000]
+            safety_section = re.search(
+                r'(防范措施|安全建议|应急处置|教训|整改要求|预防措施).{0,500}',
+                text[2000:]
+            )
+            if safety_section:
+                truncated += "\n\n【防范措施段落】\n" + safety_section.group(0)
+            text = truncated
+
         try:
             result = extractor.extract_from_text(text)
         except Exception:
-            stats["failed"] += 1
-            continue
+            return None
 
         if not result or not validator.validate_structure(result):
-            stats["failed"] += 1
-            continue
+            return None
 
         type_map = _extract_type_map(result)
         triples = extractor.convert_to_triples(result)
         if not triples:
-            stats["failed"] += 1
-            continue
+            return None
+
+        title, dt, src = _parse_meta(raw, fpath)
+        return {
+            "fpath": fpath,
+            "raw": raw,
+            "text": text,
+            "title": title,
+            "date": dt,
+            "src": src,
+            "result": result,
+            "type_map": type_map,
+            "triples": triples,
+        }
+
+    results = []
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {executor.submit(_process_one, f): f for f in files}
+        for i, future in enumerate(as_completed(futures)):
+            r = future.result()
+            if r:
+                results.append(r)
+            if (i + 1) % 50 == 0:
+                logger.info(f"    [Phase1 {i+1}/{len(files)}] 已抽取, 成功: {len(results)}")
+
+    logger.info(f"    Phase1 完成: {len(results)}/{len(files)} 成功")
+
+    # ═══════════════════════════════════════════════════════════
+    #  Phase 2: 串行写入 Neo4j + SQLite
+    # ═══════════════════════════════════════════════════════════
+    neo4j = Neo4jClient()
+    neo4j.connect()
+
+    stats = {"total": len(results), "success": 0, "failed": 0, "triples": 0, "mitigation": 0}
+    batch_triples, batch_maps = [], []
+    file_accidents = []
+
+    for i, r in enumerate(results):
+        fpath = r["fpath"]
+        result = r["result"]
+        type_map = r["type_map"]
+        triples = r["triples"]
+        title, dt, src = r["title"], r["date"], r["src"]
+        text = r["text"]
 
         batch_triples.extend(triples)
         batch_maps.append(type_map)
@@ -255,8 +307,6 @@ def _extract_from_dir(input_dir: str, label: str):
         if "Mitigation" in set(type_map.values()):
             stats["mitigation"] += 1
 
-        # 记录事故元信息（用于后续创建 Accident 聚合节点）
-        title, dt, src = _parse_meta(raw, fpath)
         file_accidents.append({
             "title": title,
             "date": str(dt) if dt else "",
@@ -266,7 +316,7 @@ def _extract_from_dir(input_dir: str, label: str):
             "entity_names": list(type_map.keys()),
         })
 
-        # SQLite 写入
+        # SQLite
         try:
             session = SessionLocal()
             existing = session.query(AccidentRecord).filter_by(title=title).first()
@@ -285,22 +335,23 @@ def _extract_from_dir(input_dir: str, label: str):
         except Exception:
             pass
 
-        if i % 20 == 0 and i > 0:
-            logger.info(f"    [{i}/{len(files)}] {stats['success']}成功 mit={stats['mitigation']}")
-
-        # 每 30 条三元组批量写入 Neo4j
-        if len(batch_triples) >= 30:
+        if (i + 1) % 30 == 0:
             _flush_neo4j(neo4j, batch_triples, batch_maps, str(fpath))
-            batch_triples, batch_maps = [], []
+            batch_triples, batch_maps = []
+        if (i + 1) % 100 == 0:
+            logger.info(f"    [Phase2 {i+1}/{len(results)}] {stats['success']}写入 mit={stats['mitigation']}")
 
     if batch_triples:
         _flush_neo4j(neo4j, batch_triples, batch_maps, "final")
 
-    # 创建 Accident 聚合节点，链接所有实体
     if file_accidents:
         _create_accident_nodes(neo4j, file_accidents)
 
-    logger.info(f"    {label}: {stats['success']}成功/{stats['failed']}失败, {stats['triples']}条, Mitigation出现在{stats['mitigation']}篇")
+    total = len(files)
+    failed = total - len(results)
+    logger.info(f"    {label}: {stats['success']}成功/{failed}失败, {stats['triples']}条, Mitigation出现在{stats['mitigation']}篇")
+    stats["failed"] = failed
+    stats["total"] = total
     return stats
 
 

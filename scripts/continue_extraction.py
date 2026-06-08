@@ -58,6 +58,17 @@ for i, fpath in enumerate(pending):
     if len(text) < 50:
         continue
 
+    # 输入截断: 长文本截取前2000字 + 防范措施段落
+    if len(text) > 2500:
+        truncated = text[:2000]
+        safety_section = re.search(
+            r'(防范措施|安全建议|应急处置|教训|整改要求|预防措施).{0,500}',
+            text[2000:]
+        )
+        if safety_section:
+            truncated += "\n\n【防范措施段落】\n" + safety_section.group(0)
+        text = truncated
+
     try:
         result = extractor.extract_from_text(text)
     except Exception:
