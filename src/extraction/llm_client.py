@@ -28,7 +28,7 @@ class LLMClient:
         self,
         system_prompt: str,
         user_prompt: str,
-        temperature: float = 0.3,
+        temperature: float = 0.5,
         response_format: Optional[dict] = None,
     ) -> str:
         """
@@ -90,9 +90,19 @@ class LLMClient:
 
         text = (text or "").strip()
 
-        # 空响应 → 直接抛出（不重试，节省时间）
+        # 空响应 → 用更高温度 + 更短 prompt 重试一次
         if not text:
-            raise ValueError("LLM returned empty response")
+            logger.warning("LLM 返回空响应，重试中（更高温度+精简prompt）...")
+            try:
+                short_user = user_prompt[:800] + "\n\n请务必返回有效的 JSON。只输出 event_chain、root_cause、consequence 三个字段。"
+                text = self.chat(
+                    system_prompt=system_prompt,
+                    user_prompt=short_user,
+                    temperature=0.7,
+                    response_format={"type": "json_object"},
+                ).strip()
+            except Exception:
+                raise ValueError("LLM returned empty response after retry")
 
         # 去除 Markdown 代码块
         text = re.sub(r'^```(?:json)?\s*\n?', '', text)

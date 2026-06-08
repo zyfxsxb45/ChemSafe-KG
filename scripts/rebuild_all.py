@@ -221,66 +221,107 @@ def _extract_from_dir(input_dir: str, label: str):
         logger.warning(f"  {label}: 无文件")
         return {"total": 0, "success": 0, "failed": 0, "triples": 0, "mitigation": 0}
 
-    logger.info(f"  {label}: {len(files)} 个文件 (4线程并发)")
+    logger.info(f"  {label}: {len(files)} 个文件 (20线程并发)")
 
     # ═══════════════════════════════════════════════════════════
     #  Phase 1: 并发 LLM 抽取
     # ═══════════════════════════════════════════════════════════
+    def _split_multi_accident(text: str) -> list[str]:
+        """
+        检测并拆分多事故汇编文章（常见于微信事故盘点类文章）。
+
+        检测条件:
+          - 含 ≥3 个日期模式（2018年5月7日 或 5月7日）
+          - 或文本 > 3000 字
+
+        拆分策略: 在日期模式边界处切分，每段 ≥ 100 字，最多 10 段。
+        普通单事故文章返回 [text]。
+        """
+        date_patterns = re.findall(
+            r'(?:20\d{2}年)?\d{1,2}月\d{1,2}日', text
+        )
+        is_multi = len(date_patterns) >= 3 or len(text) > 3000
+        if not is_multi:
+            return [text]
+
+        # 在日期边界处切分
+        segments = re.split(
+            r'(?=(?:20\d{2}年)?\d{1,2}月\d{1,2}日)', text
+        )
+        # 过滤过短段 + 限制数量
+        result = []
+        for seg in segments:
+            if len(seg) >= 100:
+                result.append(seg.strip())
+                if len(result) >= 10:
+                    break
+        return result if result else [text]
+
     def _process_one(fpath: Path):
-        """单个文件的 LLM 抽取（线程安全）"""
+        """单个文件的 LLM 抽取（线程安全），返回结果列表（多事故文章拆分）"""
         raw = fpath.read_text(encoding='utf-8')
         text = re.split(r'={5,}', raw)[-1].strip() if '=====' in raw else raw
         if len(text) < 50:
-            return None
+            return []
 
-        # 输入截断
-        if len(text) > 2500:
-            truncated = text[:2000]
-            safety_section = re.search(
-                r'(防范措施|安全建议|应急处置|教训|整改要求|预防措施).{0,500}',
-                text[2000:]
-            )
-            if safety_section:
-                truncated += "\n\n【防范措施段落】\n" + safety_section.group(0)
-            text = truncated
+        # 多事故拆分: 微信盘点文章可能含多个独立事故
+        segments = _split_multi_accident(text)
 
-        try:
-            result = extractor.extract_from_text(text)
-        except Exception:
-            return None
+        all_results = []
+        for seg_idx, seg_text in enumerate(segments):
+            # 输入截断
+            if len(seg_text) > 2500:
+                truncated = seg_text[:2000]
+                safety_section = re.search(
+                    r'(防范措施|安全建议|应急处置|教训|整改要求|预防措施).{0,500}',
+                    seg_text[2000:]
+                )
+                if safety_section:
+                    truncated += "\n\n【防范措施段落】\n" + safety_section.group(0)
+                seg_text = truncated
 
-        if not result or not validator.validate_structure(result):
-            return None
+            try:
+                result = extractor.extract_from_text(seg_text)
+            except Exception:
+                continue
 
-        type_map = _extract_type_map(result)
-        triples = extractor.convert_to_triples(result)
-        if not triples:
-            return None
+            if not result or not validator.validate_structure(result):
+                continue
 
-        title, dt, src = _parse_meta(raw, fpath)
-        return {
-            "fpath": fpath,
-            "raw": raw,
-            "text": text,
-            "title": title,
-            "date": dt,
-            "src": src,
-            "result": result,
-            "type_map": type_map,
-            "triples": triples,
-        }
+            type_map = _extract_type_map(result)
+            triples = extractor.convert_to_triples(result)
+            if not triples:
+                continue
+
+            title, dt, src = _parse_meta(raw, fpath)
+            # 多段时标题加后缀区分
+            seg_title = f"{title}（第{seg_idx+1}起）" if len(segments) > 1 else title
+
+            all_results.append({
+                "fpath": fpath,
+                "raw": raw,
+                "text": seg_text,
+                "title": seg_title,
+                "date": dt,
+                "src": src,
+                "result": result,
+                "type_map": type_map,
+                "triples": triples,
+            })
+
+        return all_results
 
     results = []
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    with ThreadPoolExecutor(max_workers=20) as executor:
         futures = {executor.submit(_process_one, f): f for f in files}
         for i, future in enumerate(as_completed(futures)):
-            r = future.result()
-            if r:
-                results.append(r)
+            batch = future.result()
+            if batch:
+                results.extend(batch)  # _process_one 返回列表（多事故拆分）
             if (i + 1) % 50 == 0:
-                logger.info(f"    [Phase1 {i+1}/{len(files)}] 已抽取, 成功: {len(results)}")
+                logger.info(f"    [Phase1 {i+1}/{len(files)}] 已抽取, 成功段: {len(results)}")
 
-    logger.info(f"    Phase1 完成: {len(results)}/{len(files)} 成功")
+    logger.info(f"    Phase1 完成: {len(results)} 段/{len(files)} 文件")
 
     # ═══════════════════════════════════════════════════════════
     #  Phase 2: 串行写入 Neo4j + SQLite
@@ -288,7 +329,7 @@ def _extract_from_dir(input_dir: str, label: str):
     neo4j = Neo4jClient()
     neo4j.connect()
 
-    stats = {"total": len(results), "success": 0, "failed": 0, "triples": 0, "mitigation": 0}
+    stats = {"success": 0, "failed": 0, "triples": 0, "mitigation": 0}
     batch_triples, batch_maps = [], []
     file_accidents = []
 
@@ -347,12 +388,19 @@ def _extract_from_dir(input_dir: str, label: str):
     if file_accidents:
         _create_accident_nodes(neo4j, file_accidents)
 
-    total = len(files)
-    failed = total - len(results)
-    logger.info(f"    {label}: {stats['success']}成功/{failed}失败, {stats['triples']}条, Mitigation出现在{stats['mitigation']}篇")
-    stats["failed"] = failed
-    stats["total"] = total
-    return stats
+    total_files = len(files)
+    total_segments = len(results)
+    failed = total_files - len(set(r["fpath"] for r in results))  # 至少一段成功的文件数
+    real_failed = total_files - len(set(r["fpath"] for r in results))
+    logger.info(f"    {label}: {stats['success']}段成功/{len(files)}文件, {stats['triples']}条, Mitigation在{stats['mitigation']}段")
+    return {
+        "total": total_files,
+        "segments": total_segments,
+        "success": stats["success"],
+        "failed": real_failed,
+        "triples": stats["triples"],
+        "mitigation": stats["mitigation"],
+    }
 
 
 def _extract_type_map(result):
@@ -435,12 +483,13 @@ def step_extract():
 
     combined = {
         "total": wx_stats["total"] + crawl_stats["total"],
+        "segments": wx_stats.get("segments", 0) + crawl_stats.get("segments", 0),
         "success": wx_stats["success"] + crawl_stats["success"],
         "failed": wx_stats["failed"] + crawl_stats["failed"],
         "triples": wx_stats["triples"] + crawl_stats["triples"],
         "mitigation_articles": wx_stats["mitigation"] + crawl_stats["mitigation"],
     }
-    logger.info(f"  合计: {combined['success']}/{combined['total']}成功, {combined['triples']}条三元组")
+    logger.info(f"  合计: {combined['success']}段/{combined['total']}文件, {combined['triples']}条三元组")
     return combined
 
 
@@ -587,6 +636,6 @@ if __name__ == "__main__":
     logger.info(f"\n{'='*60}")
     logger.info(f"  全量重建完成! 耗时 {elapsed/60:.0f} 分钟")
     logger.info(f"  爬虫: {crawl_count} 份 | 微信: {wechat_count} 篇")
-    logger.info(f"  抽取: {extract_stats['success']}/{extract_stats['total']} 成功")
+    logger.info(f"  抽取: {extract_stats['success']}段/{extract_stats['total']}文件")
     logger.info(f"  三元组: {extract_stats['triples']} 条")
     logger.info(f"{'='*60}")
