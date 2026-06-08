@@ -244,11 +244,14 @@ def _extract_from_dir(input_dir: str, label: str):
         title_match = re.search(r"标题:\s*(.+)", raw)
         title = title_match.group(1).strip() if title_match else fpath.stem
 
+        # 事故关键词（含"死亡""受伤"，mem短报告常用）
+        ACC_KW_RE = r'事故|爆炸|泄漏|中毒|火灾|伤亡|死亡|受伤|爆燃|闪爆'
+
         # E: 非事故 — 太短或几乎无关
         if len(text) < 50:
             return []
-        acc_kw = len(re.findall(r'事故|爆炸|泄漏|中毒|火灾|伤亡', text))
-        if acc_kw < 5:
+        acc_kw = len(re.findall(ACC_KW_RE, text))
+        if acc_kw < 2:
             return []
 
         # D: 分析/评论/培训/直播 — 不拆分
@@ -256,7 +259,7 @@ def _extract_from_dir(input_dir: str, label: str):
                                         '经验', '新动向', '如何', '课程', '直播',
                                         '通知', '警示', '紧急', '部署', '原因：']):
             # 但"警示"+多日期仍然是汇编("60天8起事故…通报")
-            is_actually_compilation = acc_kw >= 30 and len(re.findall(
+            is_actually_compilation = acc_kw >= 25 and len(re.findall(
                 r'20\d{2}年\d{1,2}月\d{1,2}日', text)) >= 3
             if not is_actually_compilation:
                 return [text]
