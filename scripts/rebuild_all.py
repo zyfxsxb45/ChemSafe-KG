@@ -300,8 +300,12 @@ def _extract_from_dir(input_dir: str, label: str):
         if len(text) < 50:
             return []
 
-        # 多事故拆分: 根据标题和内容分类处理
-        segments = _classify_and_split(text, raw, fpath)
+        # 仅微信文章做多事故拆分; mem报告全部是单事故，直接抽取
+        is_wechat = 'wechat' in str(fpath)
+        if is_wechat:
+            segments = _classify_and_split(text, raw, fpath)
+        else:
+            segments = [text]
 
         all_results = []
         for seg_idx, seg_text in enumerate(segments):
