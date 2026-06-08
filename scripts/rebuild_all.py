@@ -412,7 +412,6 @@ def _extract_from_dir(input_dir: str, label: str):
 
     total_files = len(files)
     total_segments = len(results)
-    failed = total_files - len(set(r["fpath"] for r in results))  # 至少一段成功的文件数
     real_failed = total_files - len(set(r["fpath"] for r in results))
     logger.info(f"    {label}: {stats['success']}段成功/{len(files)}文件, {stats['triples']}条, Mitigation在{stats['mitigation']}段")
     return {
