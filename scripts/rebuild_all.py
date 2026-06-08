@@ -226,36 +226,65 @@ def _extract_from_dir(input_dir: str, label: str):
     # ═══════════════════════════════════════════════════════════
     #  Phase 1: 并发 LLM 抽取
     # ═══════════════════════════════════════════════════════════
-    def _split_multi_accident(text: str) -> list[str]:
+    def _classify_and_split(text: str, raw: str, fpath: Path) -> list[str]:
         """
-        检测并拆分多事故汇编文章（常见于微信事故盘点类文章）。
+        检测微信文章类型并决定是否拆分。
 
-        检测条件:
-          - 含 ≥3 个日期模式（2018年5月7日 或 5月7日）
-          - 或文本 > 3000 字
-
-        拆分策略: 在日期模式边界处切分，每段 ≥ 100 字，最多 10 段。
-        普通单事故文章返回 [text]。
+        B 汇编盘点 — 拆分（标题含"盘点"/"统计"/"历史上"/"N起"）
+        D 分析评论 — 不拆分（标题含"点评"/"学到什么"/"分析"/"教训"）
+        A 单事故   — 不拆分（只有0-1个日期）
+        F 长调查   — 不拆分（标题含"调查报告"）
+        E 非事故   — 跳过（太短、无事故内容）
         """
-        date_patterns = re.findall(
-            r'(?:20\d{2}年)?\d{1,2}月\d{1,2}日', text
-        )
-        is_multi = len(date_patterns) >= 3 or len(text) > 3000
-        if not is_multi:
+        # 提取标题用于分类
+        title_match = re.search(r"标题:\s*(.+)", raw)
+        title = title_match.group(1).strip() if title_match else fpath.stem
+
+        # E: 非事故 — 太短或几乎无关
+        if len(text) < 200:
+            return []
+        acc_kw = len(re.findall(r'事故|爆炸|泄漏|中毒|火灾|伤亡', text))
+        if acc_kw < 5:
+            return []
+
+        # D: 分析/评论/培训/直播 — 不拆分
+        if any(kw in title for kw in ['点评', '学到什么', '分析', '教训与',
+                                        '经验', '新动向', '如何', '课程', '直播',
+                                        '通知', '警示', '紧急', '部署', '原因：']):
+            # 但"警示"+多日期仍然是汇编("60天8起事故…通报")
+            is_actually_compilation = acc_kw >= 30 and len(re.findall(
+                r'20\d{2}年\d{1,2}月\d{1,2}日', text)) >= 3
+            if not is_actually_compilation:
+                return [text]
+
+        # F: 长调查报告 — 单事故详细调查
+        if '调查报告' in title:
             return [text]
 
-        # 在日期边界处切分
-        segments = re.split(
-            r'(?=(?:20\d{2}年)?\d{1,2}月\d{1,2}日)', text
-        )
-        # 过滤过短段 + 限制数量
+        # A: 单事故 — 只有0-1个完整日期
+        date_count = len(re.findall(r'20\d{2}年\d{1,2}月\d{1,2}日', text))
+        if date_count <= 1:
+            return [text]
+
+        # B: 明确的多事故汇编
+        is_compilation = any(kw in title for kw in ['盘点', '统计', '历史上', '汇总'])
+        is_count_title = bool(re.search(r'\d+起|\d+个事故|\d+例|\d+条', title))
+        # 非明确汇编 + 日期不够多 → 不是多事故，不拆分
+        if not is_compilation and not is_count_title and date_count < 5:
+            return [text]
+
+        # 拆分: 在完整日期边界切分
+        segments = re.split(r'(?=20\d{2}年\d{1,2}月\d{1,2}日)', text)
         result = []
         for seg in segments:
-            if len(seg) >= 100:
-                result.append(seg.strip())
-                if len(result) >= 10:
+            seg = seg.strip()
+            if len(seg) >= 60 and re.search(r'事故|爆炸|泄漏|中毒|火灾|伤亡', seg):
+                result.append(seg)
+                if len(result) >= 15:
                     break
-        return result if result else [text]
+        if len(result) >= 2:
+            return result
+        return [text]
 
     def _process_one(fpath: Path):
         """单个文件的 LLM 抽取（线程安全），返回结果列表（多事故文章拆分）"""
@@ -264,8 +293,8 @@ def _extract_from_dir(input_dir: str, label: str):
         if len(text) < 50:
             return []
 
-        # 多事故拆分: 微信盘点文章可能含多个独立事故
-        segments = _split_multi_accident(text)
+        # 多事故拆分: 根据标题和内容分类处理
+        segments = _classify_and_split(text, raw, fpath)
 
         all_results = []
         for seg_idx, seg_text in enumerate(segments):
