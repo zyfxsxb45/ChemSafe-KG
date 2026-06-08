@@ -49,6 +49,8 @@ class PromptTemplates:
 {
   "event_chain": [
     {"entity": "冷却水循环泵", "type": "Equipment", "status": "故障"},
+    {"relation": "involves", "target": "丙烯腈"},
+    {"entity": "丙烯腈", "type": "Material"},
     {"relation": "leads_to", "target": "储罐温度持续上升"},
     {"entity": "储罐温度持续上升", "type": "Abnormal_Condition"},
     {"relation": "leads_to", "target": "丙烯腈自聚放热反应"},
@@ -61,8 +63,10 @@ class PromptTemplates:
     {"entity": "丙烯腈蒸气泄漏", "type": "Abnormal_Condition"},
     {"relation": "leads_to", "target": "遇静电火花发生爆炸"},
     {"entity": "遇静电火花发生爆炸", "type": "Consequence"},
-    {"entity": "泡沫灭火系统和罐区喷淋", "type": "Mitigation", "action": "紧急启动"},
-    {"relation": "mitigated_by", "target": "泡沫灭火系统和罐区喷淋"},
+    {"entity": "泡沫灭火系统", "type": "Mitigation", "action": "紧急启动"},
+    {"relation": "mitigated_by", "target": "泡沫灭火系统"},
+    {"entity": "罐区喷淋", "type": "Mitigation", "action": "紧急启动"},
+    {"relation": "mitigated_by", "target": "罐区喷淋"},
     {"entity": "人员疏散至安全区域", "type": "Mitigation", "action": "组织"},
     {"relation": "mitigated_by", "target": "人员疏散至安全区域"},
     {"entity": "切断进料阀门", "type": "Mitigation", "action": "紧急"},
@@ -73,11 +77,11 @@ class PromptTemplates:
 }
 
 注意这个示例中：
-- 因果链从 Equipment 故障开始，经过 5 步 Abnormal_Condition，最终到达 Consequence，中间没有任何一步的跳跃
-- Entity 名均不超过 15 个汉字，且每个 entity 只描述单一事实（如「储罐温度持续上升」而非「泵故障导致温度上升」）
-- Equipment 和 Material 在首次出现时独立标注，随后 Abnormal_Condition 可直接引用
-- 伤亡示例中使用了「遇静电火花发生爆炸」（Consequence），而非具体数字
-- Mitigation 实体在链尾标注"""
+- Equipment「冷却水循环泵」→ involves → Material「丙烯腈」：设备与物料的参与关系在链头独立标注
+- Material「丙烯腈」在首次出现时独立抽取，后续 Abnormal_Condition 中可引用
+- 每一项 Mitigation 独立成实体（「泡沫灭火系统」与「罐区喷淋」分开），不合并
+- Entity 名均不超过 15 个汉字，且每个 entity 只描述单一事实
+- 因果链从 Equipment 故障开始，经过 5 步 Abnormal_Condition，最终到 Consequence，无跳跃"""
 
     # ─── 抽取指令模板 ──────────────────────────────────────────────────
     EXTRACTION_TEMPLATE = """请分析以下事故报告片段，提取完整的因果事件链。
