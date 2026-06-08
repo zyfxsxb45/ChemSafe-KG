@@ -1,8 +1,8 @@
 # ChemSafe-KG 项目框架说明文档
 
 > **项目**：ChemSafe-KG：基于大模型驱动的化工安全事故知识图谱构建与因果推理问答系统  
-> **框架版本**：v0.6.0（对照实验 + 嵌入语义融合 + 跨源链接 + JSON 容错 + 数据洞察）  
-> **编写时间**：2026-06-04（最后修订）
+> **框架版本**：v0.7.0（全量重建 + 微信数据集成 + Accident 聚合节点 + Prompt 事件原子化 + 日期修复）  
+> **编写时间**：2026-06-04（最后修订：2026-06-08）
 
 ---
 
@@ -138,23 +138,25 @@ ChemSafe-KG/
 
 | 模块 | 文件 | 实现状态 | 说明 |
 |------|------|---------|------|
-| 事故报告爬虫 | `report_crawler.py` | ✅ **已实现** | 200 份 mem.gov.cn 事故报告已采集 |
+| 事故报告爬虫 | `report_crawler.py` | ✅ **已实现** | 1,261 份 mem.gov.cn 事故报告已采集（不限量模式） |
+| 微信数据预处理 | `process_wechat_data.py` | ✅ 已实现 | 74 篇微信公众号事故分析文章 |
 | 化学品API | `chemical_api.py` | ✅ 已实现 | 29 种危化品物性（PubChem via pubchempy） |
 | 气象数据 | `weather_fetcher.py` | ✅ 已实现 | Open-Meteo，免费无需 Key |
 | PDF解析 | `pdf_parser.py` | ⏳ 基础实现 | pdfplumber 单文件可解析，未接入批量流水线 |
 | 文本清洗 | `text_cleaner.py` | ✅ 已实现 | 空白规范化、标点标准化、页眉页脚去除、PII 脱敏、智能分段 |
 | 数据融合 | `data_merger.py` | ✅ 已实现 | 事故-化学品关联 + 气象关联 + 统一视图构建 |
 
-#### TODO 清单（更新于 v0.5.0）
+#### TODO 清单（更新于 v0.7.0）
 
 爬虫模块 ✅ 已实现：
-- [x] mem.gov.cn 列表页解析（95 条月度汇编）
+- [x] mem.gov.cn 列表页解析（全量月度汇编）
 - [x] 月度详情页事故提取（逐段扫描，特征区分）
 - [x] URL 正确拼接（urljoin 处理相对路径）
-- [x] 批量限制（max_reports 参数）
+- [x] 不限量采集（max_reports=9999）
 - [x] CSB 列表页解析（requests 降级）
 - [x] 文件保存为 UTF-8 .txt
 - [x] 批量抽取流水线（.txt → LLM → Neo4j + SQLite）
+- [x] 微信公众号数据集成（74 篇事故分析文章）
 
 仍待完成：
 - [ ] 其他数据源接入（ciedu.com.cn 502、ichemsafe.com 需登录）
@@ -190,7 +192,8 @@ Prompt 设计示例已在 `prompt_templates.py` 中完整定义，包含：
 - [x] LLM API Key 已配置：DeepSeek `deepseek-v4-flash`
 - [x] LLM 连接测试通过：`chat()` 和 `chat_json()` 正常
 - [x] Prompt Chain 已验证：5 类实体 / 3 类关系 + Few-shot 示例
-- [x] 批量抽取通过：200 份报告，174 成功，995 条三元组
+- [x] Prompt 事件原子化：entity 名称 ≤15 汉字 + Equipment/Material 优先识别（v0.7）
+- [x] 批量抽取通过：1,300+ 份报告，含 mem.gov.cn + 微信
 - [ ] PDF 分段抽取合并：超长报告的分段-合并策略
 - [ ] 并发抽取：asyncio 加速
 - [ ] 同义实体合并：抽取结果去重
@@ -218,7 +221,8 @@ Prompt 设计示例已在 `prompt_templates.py` 中完整定义，包含：
 - [x] Neo4j 连接已配置（bolt://localhost:7687）
 - [x] 数据库索引/约束已创建（UNIQUE 约束防重复节点）
 - [x] ORM 模型完整：AccidentRecord + ChemicalProperty + WeatherRecord
-- [x] 批量写入已验证：995 条三元组成功入库
+- [x] 批量写入已验证：13,000+ 条三元组成功入库
+- [ ] Accident 聚合节点：下次全量重建后生效（代码已就绪）
 - [ ] 跨源链接完善：Neo4j↔SQLite 数据联动（data_linker.py）
 
 ---
@@ -384,7 +388,7 @@ pipeline.py
 | 17 | 扫描 PDF OCR | ❌ 未实现 |
 | 18 | 统计仪表盘 | ✅ 已完成（stats_dashboard.py） |
 | 19 | KG 可视化 | ✅ 已完成（streamlit-agraph） |
-| 20 | Prompt 模板优化 | ✅ 已完成（Few-shot + 5 规则） |
+| 20 | Prompt 模板优化 | ✅ 已完成（Few-shot + 8 规则 + 事件原子化） |
 
 #### 🔵 P3 — 锦上添花（可选加分项）
 
@@ -542,9 +546,15 @@ python -c "from py2neo import Graph; g=Graph('bolt://localhost:7687',auth=('neo4
 - ✅ **配置体系**：分层配置，支持 `.env` 环境管理
 - ✅ **数据模型**：图 Schema 和关系表模型已设计
 - ✅ **流水线编排**：`pipeline.py` 支持分阶段执行
-- ✅ **爬虫模块**：`report_crawler.py` mem.gov.cn 解析器已实现（94个月度页，2000+事故）
-- ✅ **批量抽取流水线**：`scripts/run_extraction_pipeline.py` 已完成，支持.txt→LLM→Neo4j
-- ✅ **数据源URL**：9 个事故数据源 URL 已填入代码
+- ✅ **爬虫模块**：`report_crawler.py` mem.gov.cn 解析器已实现（全量月度汇编页，1,261+ 事故）
+- ✅ **微信数据集成**：`process_wechat_data.py` 74篇微信公众号事故分析文章
+- ✅ **批量抽取流水线**：`scripts/run_extraction_pipeline.py` 已完成，支持.txt→LLM→Neo4j+SQLite 双写
+- ✅ **全量重建**：`scripts/rebuild_all.py` 提供从清库到报告的完整重建链路
+- ✅ **续抽取**：`scripts/continue_extraction.py` 支持断点续跑
+- ✅ **日期列修复**：`scripts/backfill_dates.py` 回填 98.3% 记录的日期
+- ✅ **source_url 格式统一**：`scripts/normalize_source_url.py` 统一为 mem:/微信: 前缀
+- ✅ **Accident 聚合节点**：代码已就绪，下次全量重建后生效
+- ✅ **Prompt 事件原子化**：entity 名 ≤15 汉字 + Equipment/Material 优先识别
 - ✅ **PubChem API**：`chemical_api.py` 已实现真实调用（无需 Key）
 - ✅ **气象数据**：`weather_fetcher.py` 已集成 Open-Meteo（免费，无需 Key）
 - ✅ **LLM API**：DeepSeek `deepseek-v4-flash` 已验证可调用
@@ -580,7 +590,7 @@ python -c "from py2neo import Graph; g=Graph('bolt://localhost:7687',auth=('neo4
 3. **第12-13周（已完成）**：LLM 抽取 ✅ | Neo4j 入库 ✅ | 批量流水线 ✅
 4. **第14周（已完成）**：Graph RAG 检索 ✅ | 问答生成 ✅ | 前端串联 ✅
 5. **第15周（已完成）**：数据扩充 ✅ | 统计仪表盘 ✅ | 因果路径可视化 ✅ | 多源融合 ✅
-6. **第16周（当前）**：文档完善 → QA 增强 → 演示准备 → 课程报告
+6. **第16周（当前）**：文档完善 → 全量重建 → 期末汇报
 
 ---
 

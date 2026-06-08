@@ -306,13 +306,24 @@ def _flush(neo4j, triples, type_maps, source):
 
 
 def _save_to_sqlite(file_path, raw_text, accident_text, llm_result, type_map):
-    """写入 SQLite（与现有 run_extraction_pipeline 逻辑一致）"""
+    """写入 SQLite（含 date 提取，与 rebuild_all.py 保持一致）"""
     try:
         from config.database import SessionLocal
         from src.storage.relational_db import AccidentRecord
+        from datetime import datetime as dt_mod
 
         title_match = re.search(r"标题:\s*(.+)", raw_text)
+        date_match = re.search(r"日期:\s*(.+)", raw_text)
         title = title_match.group(1).strip() if title_match else Path(file_path).stem
+
+        dt = None
+        if date_match:
+            date_str = date_match.group(1).strip()
+            if re.match(r"\d{4}-\d{2}-\d{2}", date_str):
+                try:
+                    dt = dt_mod.strptime(date_str, "%Y-%m-%d").date()
+                except ValueError:
+                    pass
 
         root_cause = llm_result.get("root_cause", "")
         consequence = llm_result.get("consequence", "")
@@ -324,8 +335,9 @@ def _save_to_sqlite(file_path, raw_text, accident_text, llm_result, type_map):
         if not existing:
             session.add(AccidentRecord(
                 title=title,
+                date=dt,
                 summary=accident_text[:500],
-                source_url="wechat:ciedu",
+                source_url=f"微信:{Path(file_path).name}",
                 root_cause=root_cause,
                 consequence=consequence,
                 related_chemicals=chemicals,

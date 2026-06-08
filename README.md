@@ -2,7 +2,7 @@
 
 > **基于大模型驱动的化工安全事故知识图谱构建与因果推理问答系统**  
 > 数据库技术及应用课程项目 · 大二下  
-> **v0.6.0** — 1,538 节点 / 1,727 关系 · Graph RAG vs 纯LLM 对照实验 · 嵌入语义融合 · 跨源链接
+> **v0.7.0** — 4,734 节点 / 6,863 关系 · 全量重建 · 微信数据集成 · Accident 聚合节点 · Mitigation 36（9×提升）
 
 ---
 
@@ -10,9 +10,9 @@
 
 ChemSafe-KG 是一个端到端的化工安全知识图谱系统，核心创新点：
 
-1. **LLM 驱动的自动化 KG 构建** — Prompt Chain 策略驱动 DeepSeek 从非结构化事故报告中自动抽取实体与因果链，174/200 成功率（87%），JSON 3 级容错恢复
+1. **LLM 驱动的自动化 KG 构建** — Prompt Chain 策略驱动 DeepSeek 从非结构化事故报告中自动抽取实体与因果链，1,300+ 文件批量抽取，JSON 3 级容错恢复
 2. **因果约束的 Graph RAG 问答** — 利用知识图谱中的因果路径约束 LLM 生成空间，每条陈述标注来源路径。对照实验证明：幻觉减少 3×、来源可追溯率 +90%、诚实拒答
-3. **多源数据融合分析** — 事故报告 + 29 种危化品物性（PubChem） + 历史气象数据（Open-Meteo），构建统一多维分析视图
+3. **多源数据融合分析** — 事故报告（mem.gov.cn） + 微信事故分析 + 29 种危化品物性（PubChem），构建统一多维分析视图
 
 覆盖课程全部核心模块：Pandas 数据处理、SQL/图数据库、LLM4Data、Data4LLM、数据可视化。
 
@@ -20,12 +20,14 @@ ChemSafe-KG 是一个端到端的化工安全知识图谱系统，核心创新�
 
 | 指标 | 数值 |
 |------|------|
-| 知识图谱节点 | **1,538**（Abnormal 1,076 / Consequence 185 / Equipment 166 / Material 107 / Mitigation 4） |
-| 因果关系边 | **1,727** |
-| SQLite 事故记录 | **187**（100% 含根原因与后果摘要） |
+| 知识图谱节点 | **4,734**（Abnormal 3,197 / Consequence 731 / Equipment 443 / Material 327 / Mitigation 36 / Accident 0*） |
+| 因果关系边 | **6,863**（leads_to 6,065 / involves 693 / mitigated_by 105） |
+| SQLite 事故记录 | **1,326**（100% 含根原因与后果摘要，98% 含日期） |
+| 事故报告来源 | **1,261** 份 mem.gov.cn + **74** 篇微信公众号 |
 | 化学品物性 | **29** 种（100% 含分子量、IUPAC 名、CAS 号） |
-| 气象记录 | **8** 条（Open-Meteo 真实历史天气） |
 | 事故时间跨度 | 1947–2026（79 年） |
+
+> *Accident 聚合节点已在 v0.7 代码中实现，下次全量重建后生效。
 
 ## 核心实验结果
 
@@ -48,21 +50,22 @@ pip install -r requirements.txt
 # 2. 配置环境变量
 cp .env.example .env   # 填入 LLM_API_KEY 和 Neo4j 密码
 
-# 3. 初始化数据库
-python scripts/init_db.py
+# 3. 全量重建（推荐，一键完成所有步骤）
+python scripts/rebuild_all.py
 
-# 4. 全流程一键运行
-python pipeline.py --stage all          # 采集→抽取→充实→问答验证
-# 或分阶段:
+# 4. 或分阶段运行
 python pipeline.py --stage acquisition  # 爬虫采集
 python pipeline.py --stage extraction   # LLM 抽取
 python pipeline.py --stage enrich       # 数据充实
 python pipeline.py --stage qa           # 问答验证
 
-# 5. 对照实验
+# 5. 续抽取（只处理新增文件）
+python scripts/continue_extraction.py
+
+# 6. 对照实验
 python scripts/run_comparative_experiment.py
 
-# 6. 启动 Web 应用
+# 7. 启动 Web 应用
 streamlit run app.py                    # → http://localhost:8501
 ```
 
@@ -86,18 +89,22 @@ ChemSafe-KG/
 ├── src/
 │   ├── acquisition/                # 爬虫（mem.gov.cn/CSB）+ PubChem + Open-Meteo
 │   ├── preprocessing/              # 文本清洗 + PDF解析 + 多源融合
-│   ├── extraction/                 # LLM 抽取引擎（Prompt Chain + JSON容错）
-│   ├── storage/                    # Neo4j + SQLite + Schema + 跨源链接
+│   ├── extraction/                 # LLM 抽取引擎（Prompt Chain + JSON容错 + 事件原子化）
+│   ├── storage/                    # Neo4j + SQLite + Schema + 跨源链接 + Accident聚合
 │   ├── retrieval/                  # 因果路径检索 + 三层实体匹配 + 嵌入语义
 │   ├── qa/                         # Graph RAG 约束问答 + 降级处理
 │   └── visualization/              # 10种图表 + 因果路径有向图 + KG可视化
 ├── scripts/
+│   ├── rebuild_all.py               # ★ 全量重建（清库→爬虫→微信→抽取→充实→验证）
+│   ├── continue_extraction.py       # 续抽取（只处理新增文件，断点续跑）
+│   ├── process_wechat_data.py       # 微信公众号数据预处理
 │   ├── run_demo_pipeline.py         # 端到端演示
 │   ├── run_extraction_pipeline.py   # 批量抽取
 │   ├── run_evaluation.py            # 综合评估（SQL×8 + QA×6 + E/R图 + 性能基准）
 │   ├── run_comparative_experiment.py # Graph RAG vs 纯LLM 对照实验
+│   ├── backfill_dates.py            # 日期回填
+│   ├── normalize_source_url.py      # source_url 格式统一
 │   ├── enrich_data.py               # 数据充实
-│   ├── fix_database.py              # 数据库修复
 │   ├── init_db.py                   # 初始化
 │   └── seed_data.py                 # 种子数据
 ├── data/                           # 原始/处理后/外部数据
@@ -133,9 +140,10 @@ ChemSafe-KG/
 
 | 数据源 | 优先级 | 状态 | 说明 |
 |--------|--------|------|------|
-| **mem.gov.cn** 应急管理部 | P1 | ✅ 200 份 | 95 个月度页，含根因分析 |
+| **mem.gov.cn** 应急管理部 | P1 | ✅ 1,261 份 | 全量月度汇编页，含根因分析 |
+| **微信公众号** 事故分析 | P1 | ✅ 74 篇 | 含防范措施与教训反思，Mitigation 主要来源 |
 | **PubChem** 化学品物性 | P0 | ✅ 29 种 | 100% 含分子量/CAS/IUPAC |
-| **Open-Meteo** 气象数据 | P0 | ✅ 8 条 | 34 省坐标覆盖 |
+| **Open-Meteo** 气象数据 | P2 | ✅ 8 条 | 34 省坐标覆盖 |
 | CSB 美国化学品安全委员会 | P2 | ✅ requests 降级 | JS 渲染需 browser tool |
 | ciedu.com.cn 事故案例库 | P0 | ⚠️ CAPTCHA | 需 browser tool 接入 |
 

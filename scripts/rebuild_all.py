@@ -164,8 +164,45 @@ def step_wechat_preprocess():
 # ═══════════════════════════════════════════════════════════════════
 #  第三步: LLM 批量抽取
 # ═══════════════════════════════════════════════════════════════════
+def _parse_meta(raw_text: str, fpath: Path):
+    """
+    从报告文件 frontmatter 提取元信息。
+
+    mem.gov.cn 格式:
+        标题: XXX\n来源: mem.gov.cn\n日期: 2020-05-07\n月度汇编: XXX\n=====
+    微信格式:
+        标题: XXX\n摘要: XXX\n=====
+
+    Returns: (title, date, source_label)
+    """
+    from datetime import datetime
+
+    title_match = re.search(r"标题:\s*(.+)", raw_text)
+    date_match = re.search(r"日期:\s*(.+)", raw_text)
+    title = title_match.group(1).strip()[:500] if title_match else fpath.stem[:500]
+
+    dt = None
+    if date_match:
+        date_str = date_match.group(1).strip()
+        if re.match(r"\d{4}-\d{2}-\d{2}", date_str):
+            try:
+                dt = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                pass
+
+    # 判断来源: 微信文章有"摘要:"字段，mem 报告有"来源:"或"月度汇编:"字段
+    if re.search(r"摘要:\s*", raw_text) or "wechat" in str(fpath):
+        src = "微信"
+    elif re.search(r"月度汇编:\s*", raw_text) or re.search(r"来源:\s*mem", raw_text):
+        src = "mem"
+    else:
+        src = "mem"
+
+    return title, dt, src
+
+
 def _extract_from_dir(input_dir: str, label: str):
-    """从目录批量抽取 → Neo4j + SQLite 双写"""
+    """从目录批量抽取 → Neo4j + SQLite 双写（含 Accident 聚合节点）"""
     from src.extraction.entity_extractor import EntityExtractor
     from src.extraction.result_validator import ResultValidator
     from src.storage.neo4j_client import Neo4jClient
@@ -186,6 +223,7 @@ def _extract_from_dir(input_dir: str, label: str):
 
     stats = {"total": 0, "success": 0, "failed": 0, "triples": 0, "mitigation": 0}
     batch_triples, batch_maps = [], []
+    file_accidents = []  # 收集事故元信息，用于创建 Accident 节点
 
     for i, fpath in enumerate(files):
         raw = fpath.read_text(encoding='utf-8')
@@ -217,18 +255,27 @@ def _extract_from_dir(input_dir: str, label: str):
         if "Mitigation" in set(type_map.values()):
             stats["mitigation"] += 1
 
+        # 记录事故元信息（用于后续创建 Accident 聚合节点）
+        title, dt, src = _parse_meta(raw, fpath)
+        file_accidents.append({
+            "title": title,
+            "date": str(dt) if dt else "",
+            "source_url": f"{src}:{fpath.name}",
+            "root_cause": result.get("root_cause", ""),
+            "consequence": result.get("consequence", ""),
+            "entity_names": list(type_map.keys()),
+        })
+
         # SQLite 写入
         try:
-            title_match = re.search(r"标题:\s*(.+)", raw)
-            title = title_match.group(1).strip()[:500] if title_match else fpath.stem[:500]
             session = SessionLocal()
             existing = session.query(AccidentRecord).filter_by(title=title).first()
             if not existing:
                 chems = ",".join(n for n, t in type_map.items() if t == "Material")
                 equips = ",".join(n for n, t in type_map.items() if t == "Equipment")
                 session.add(AccidentRecord(
-                    title=title, summary=text[:500],
-                    source_url=f"{label}:{fpath.name}",
+                    title=title, date=dt, summary=text[:500],
+                    source_url=f"{src}:{fpath.name}",
                     root_cause=result.get("root_cause", ""),
                     consequence=result.get("consequence", ""),
                     related_chemicals=chems, related_equipment=equips,
@@ -249,6 +296,10 @@ def _extract_from_dir(input_dir: str, label: str):
     if batch_triples:
         _flush_neo4j(neo4j, batch_triples, batch_maps, "final")
 
+    # 创建 Accident 聚合节点，链接所有实体
+    if file_accidents:
+        _create_accident_nodes(neo4j, file_accidents)
+
     logger.info(f"    {label}: {stats['success']}成功/{stats['failed']}失败, {stats['triples']}条, Mitigation出现在{stats['mitigation']}篇")
     return stats
 
@@ -268,6 +319,58 @@ def _flush_neo4j(neo4j, triples, maps, src):
     neo4j.batch_create_triples(triples, entity_type_map=merged, source_report=src)
 
 
+def _create_accident_nodes(neo4j, file_accidents: list):
+    """
+    为每个事故文件创建 Accident 聚合节点，
+    并将该事故中所有实体通过 belongs_to 关系链接到 Accident 节点。
+    """
+    if neo4j.graph is None:
+        return
+
+    created = 0
+    linked = 0
+
+    for acc in file_accidents:
+        entity_names = acc.get("entity_names", [])
+        if not entity_names:
+            continue
+
+        title = acc["title"]
+        source_url = acc.get("source_url", "")
+        date_str = acc.get("date", "")
+
+        # MERGE Accident 节点（按 title 去重）
+        neo4j.graph.run(
+            "MERGE (a:Accident {title: $title}) "
+            "SET a.source_url = $source_url, a.date = $date, "
+            "a.root_cause = $root_cause, a.consequence = $consequence",
+            title=title,
+            source_url=source_url,
+            date=date_str,
+            root_cause=acc.get("root_cause", ""),
+            consequence=acc.get("consequence", ""),
+        )
+        created += 1
+
+        # 链接实体 → Accident（只链接在该事故 event_chain 中出现的实体）
+        for ename in entity_names:
+            if not ename or len(ename) < 2:
+                continue
+            try:
+                neo4j.graph.run(
+                    "MATCH (a:Accident {title: $title}) "
+                    "MATCH (e {name: $ename}) "
+                    "WHERE size(labels(e)) > 0 "
+                    "MERGE (e)-[:belongs_to]->(a)",
+                    title=title, ename=ename,
+                )
+                linked += 1
+            except Exception:
+                pass
+
+    logger.info(f"    Accident节点: {created} 个创建, {linked} 个实体关联")
+
+
 def step_extract():
     """LLM批量抽取: 先微信, 后爬虫"""
     logger.info("=" * 60)
@@ -276,8 +379,8 @@ def step_extract():
 
     # 先微信（质量更高，Mitigation更丰富）
     wx_stats = _extract_from_dir("data/raw/wechat_reports", "微信")
-    # 再爬虫（量大）
-    crawl_stats = _extract_from_dir("data/raw/accident_reports", "爬虫")
+    # 再 mem（量大）
+    crawl_stats = _extract_from_dir("data/raw/accident_reports", "mem")
 
     combined = {
         "total": wx_stats["total"] + crawl_stats["total"],
@@ -366,7 +469,8 @@ def step_verify():
             logger.info(f"    {row['l']:25s}: {row['c']:5d}")
         total = sum(row['c'] for row in r)
         rels = neo4j.graph.run("MATCH ()-[r]->() RETURN count(r) as c").data()[0]['c']
-        logger.info(f"    {'Total':25s}: {total:5d} nodes, {rels} rels")
+        acc_count = neo4j.graph.run("MATCH (a:Accident) RETURN count(a) as c").data()[0]['c']
+        logger.info(f"    {'Total':25s}: {total:5d} nodes, {rels} rels, {acc_count} Accident")
 
     import sqlite3
     conn = sqlite3.connect("data/processed/chemsafe.db")

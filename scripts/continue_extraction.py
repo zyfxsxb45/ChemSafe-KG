@@ -85,18 +85,36 @@ for i, fpath in enumerate(pending):
     if "Mitigation" in set(type_map.values()):
         stats["mitigation"] += 1
 
-    # SQLite
+    # SQLite（含 date 提取，与 rebuild_all.py 保持一致）
     try:
+        from datetime import datetime as dt_mod
         title_match = re.search(r"标题:\s*(.+)", raw)
+        date_match = re.search(r"日期:\s*(.+)", raw)
         title = title_match.group(1).strip()[:500] if title_match else fpath.stem[:500]
+
+        dt = None
+        if date_match:
+            date_str = date_match.group(1).strip()
+            if re.match(r"\d{4}-\d{2}-\d{2}", date_str):
+                try:
+                    dt = dt_mod.strptime(date_str, "%Y-%m-%d").date()
+                except ValueError:
+                    pass
+
+        # 判断来源
+        if re.search(r"摘要:\s*", raw) or "wechat" in str(fpath):
+            src = "微信"
+        else:
+            src = "mem"
+
         session = SessionLocal()
         existing = session.query(AccidentRecord).filter_by(title=title).first()
         if not existing:
             chems = ",".join(n for n, t in type_map.items() if t == "Material")
             equips = ",".join(n for n, t in type_map.items() if t == "Equipment")
             session.add(AccidentRecord(
-                title=title, summary=text[:500],
-                source_url=f"{'wechat' if 'wechat' in str(fpath) else 'mem'}:{fpath.name}",
+                title=title, date=dt, summary=text[:500],
+                source_url=f"{src}:{fpath.name}",
                 root_cause=result.get("root_cause", ""),
                 consequence=result.get("consequence", ""),
                 related_chemicals=chems, related_equipment=equips,

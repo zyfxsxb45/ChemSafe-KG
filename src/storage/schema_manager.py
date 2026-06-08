@@ -79,6 +79,7 @@ class GraphSchema:
         statements = [
             "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Equipment) REQUIRE n.name IS UNIQUE",
             "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Material) REQUIRE n.name IS UNIQUE",
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Accident) REQUIRE n.title IS UNIQUE",
             "CREATE INDEX IF NOT EXISTS FOR (n:Abnormal_Condition) ON (n.name)",
             "CREATE INDEX IF NOT EXISTS FOR (n:Accident) ON (n.id)",
         ]
