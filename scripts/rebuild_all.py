@@ -400,7 +400,7 @@ def _extract_from_dir(input_dir: str, label: str):
 
         if (i + 1) % 30 == 0:
             _flush_neo4j(neo4j, batch_triples, batch_maps, str(fpath))
-            batch_triples, batch_maps = []
+            batch_triples, batch_maps = [], []
         if (i + 1) % 100 == 0:
             logger.info(f"    [Phase2 {i+1}/{len(results)}] {stats['success']}写入 mit={stats['mitigation']}")
 
