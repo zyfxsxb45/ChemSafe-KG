@@ -373,6 +373,162 @@ class StatsDashboard:
 
         return stats
 
+    # ── 天气-事故关联分析 ────────────────────────────────────────────────
+    def weather_accident_correlation(self, accidents_df: pd.DataFrame,
+                                      weather_df: pd.DataFrame) -> go.Figure | None:
+        """天气温度与事故数量的关联散点图"""
+        if accidents_df.empty or weather_df.empty:
+            return None
+        if "date" not in accidents_df.columns:
+            return None
+
+        df = accidents_df.copy()
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df = df.dropna(subset=["date"])
+        df["year_month"] = df["date"].dt.to_period("M")
+        monthly = df.groupby("year_month").size().reset_index(name="accidents")
+        monthly["year_month"] = monthly["year_month"].astype(str)
+
+        wdf = weather_df.copy()
+        if "date" in wdf.columns:
+            wdf["date"] = pd.to_datetime(wdf["date"], errors="coerce")
+            wdf["year_month"] = wdf["date"].dt.to_period("M").astype(str)
+
+            merged = monthly.merge(wdf, on="year_month", how="inner")
+            if merged.empty:
+                return None
+
+            fig = px.scatter(
+                merged, x="temperature_max", y="accidents",
+                size="precipitation" if "precipitation" in merged.columns else None,
+                hover_data=["year_month"],
+                title="气温与事故数量关联（月度聚合）",
+                labels={"temperature_max": "最高气温 (°C)", "accidents": "事故数"},
+                color="temperature_max", color_continuous_scale="RdBu_r",
+            )
+            fig.update_layout(height=400)
+            return fig
+        return None
+
+    def weather_seasonality(self, accidents_df: pd.DataFrame) -> go.Figure:
+        """事故月度分布（季节性分析）"""
+        if accidents_df.empty or "date" not in accidents_df.columns:
+            return self._empty_fig("暂无数据")
+
+        df = accidents_df.copy()
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df = df.dropna(subset=["date"])
+        df["month"] = df["date"].dt.month
+        monthly = df.groupby("month").size().reset_index(name="count")
+        months_cn = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"]
+        monthly["month_label"] = monthly["month"].apply(lambda x: months_cn[x-1] if 1<=x<=12 else "")
+
+        fig = px.bar(
+            monthly, x="month_label", y="count",
+            title="事故月度分布（季节性模式）",
+            labels={"month_label": "月份", "count": "事故数"},
+            color="count", color_continuous_scale="Reds",
+        )
+        fig.update_layout(height=400, xaxis_title="月份", yaxis_title="事故数", showlegend=False)
+        return fig
+
+    # ── 化学品-事故关联分析 ──────────────────────────────────────────────
+    def chemical_cooccurrence_heatmap(self, accidents_df: pd.DataFrame) -> go.Figure:
+        """化学品共现热力图：哪些化学品常在同一起事故中出现"""
+        if accidents_df.empty or "related_chemicals" not in accidents_df.columns:
+            return self._empty_fig("暂无化学品数据")
+
+        from collections import Counter
+        import numpy as np
+
+        # 提取每起事故的化学品列表
+        chem_lists = []
+        for val in accidents_df["related_chemicals"].dropna():
+            chems = [c.strip() for c in str(val).split(",") if len(c.strip()) >= 2]
+            if len(chems) >= 2:
+                chem_lists.append(chems)
+
+        if not chem_lists:
+            return self._empty_fig("无多化学品事故")
+
+        # 取 Top 15 化学品
+        all_chems = Counter()
+        for cl in chem_lists:
+            all_chems.update(cl)
+        top_chems = [c for c, _ in all_chems.most_common(15)]
+
+        # 计算共现矩阵
+        n = len(top_chems)
+        matrix = np.zeros((n, n))
+        chem_idx = {c: i for i, c in enumerate(top_chems)}
+        for cl in chem_lists:
+            relevant = [c for c in cl if c in chem_idx]
+            for i, c1 in enumerate(relevant):
+                for c2 in relevant[i+1:]:
+                    matrix[chem_idx[c1]][chem_idx[c2]] += 1
+                    matrix[chem_idx[c2]][chem_idx[c1]] += 1
+
+        # 对称矩阵用上三角
+        fig = go.Figure(data=go.Heatmap(
+            z=matrix, x=top_chems, y=top_chems,
+            colorscale="Blues", showscale=True,
+            hovertemplate="%{x} + %{y}: %{z} 起<extra></extra>",
+        ))
+        fig.update_layout(
+            title="化学品共现热力图（同一起事故中同时出现的频次）",
+            height=500, xaxis_tickangle=45,
+        )
+        return fig
+
+    def chemical_accident_type_cross(self, accidents_df: pd.DataFrame) -> go.Figure:
+        """化学品 vs 事故类型交叉表"""
+        if accidents_df.empty:
+            return self._empty_fig("暂无数据")
+
+        TYPE_KEYWORDS = {
+            "爆炸": ["爆炸", "爆燃", "闪爆"], "中毒": ["中毒", "窒息"],
+            "火灾": ["火灾", "起火"], "泄漏": ["泄漏", "泄露"],
+        }
+
+        from collections import Counter
+        # 取 Top 10 化学品
+        chem_counter = Counter()
+        for val in accidents_df["related_chemicals"].dropna():
+            for c in str(val).split(","):
+                c = c.strip()
+                if len(c) >= 2:
+                    chem_counter[c] += 1
+        top_chems = [c for c, _ in chem_counter.most_common(10)]
+
+        # 交叉统计
+        rows = []
+        for _, acc in accidents_df.iterrows():
+            txt = str(acc.get("title", "")) + " " + str(acc.get("root_cause", ""))
+            atype = "其他"
+            for t, kws in TYPE_KEYWORDS.items():
+                if any(kw in txt for kw in kws):
+                    atype = t; break
+            chems_raw = str(acc.get("related_chemicals", ""))
+            for chem in top_chems:
+                if chem in chems_raw:
+                    rows.append({"化学品": chem, "事故类型": atype})
+
+        if not rows:
+            return self._empty_fig("无交叉数据")
+
+        cross_df = pd.DataFrame(rows)
+        pivot = cross_df.groupby(["化学品", "事故类型"]).size().reset_index(name="count")
+
+        fig = px.bar(
+            pivot, x="化学品", y="count", color="事故类型",
+            title="化学品 × 事故类型交叉分析",
+            labels={"count": "事故数"},
+            barmode="stack",
+            color_discrete_sequence=["#F44336", "#FF9800", "#FF5722", "#2196F3"],
+        )
+        fig.update_layout(height=450, xaxis_tickangle=45)
+        return fig
+
     # ── 辅助 ───────────────────────────────────────────────────────────────
     def _empty_fig(self, msg: str) -> go.Figure:
         fig = go.Figure()

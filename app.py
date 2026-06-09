@@ -404,14 +404,20 @@ elif page == "📊 多维数据分析":
                 st.plotly_chart(dashboard.accident_timeline(df_accidents), width='stretch')
             with c2:
                 st.plotly_chart(dashboard.accident_type_pie(df_accidents), width='stretch')
-            # 天气数据展示
-            try:
-                weather_df = pd.read_sql("SELECT * FROM weather_records", engine)
-                if not weather_df.empty:
-                    with st.expander(f"🌤️ 历史天气数据（{len(weather_df)} 条，与事故日期+地点关联）", expanded=False):
-                        st.dataframe(weather_df, width='stretch', hide_index=True, height=200)
-            except Exception:
-                pass
+            # 季节性 + 天气关联
+            c3, c4 = st.columns(2)
+            with c3:
+                st.plotly_chart(dashboard.weather_seasonality(df_accidents), width='stretch')
+            with c4:
+                try:
+                    wdf = pd.read_sql("SELECT * FROM weather_records", engine)
+                    fig_w = dashboard.weather_accident_correlation(df_accidents, wdf)
+                    if fig_w:
+                        st.plotly_chart(fig_w, width='stretch')
+                    else:
+                        st.info("天气与事故时间聚合无交集")
+                except Exception:
+                    st.info("天气数据不可用")
             st.plotly_chart(dashboard.location_bar(df_accidents), width='stretch')
 
         with tab2:
@@ -424,9 +430,15 @@ elif page == "📊 多维数据分析":
                     st.plotly_chart(dashboard.chemical_risk_matrix(chem_df), width='stretch')
                 else:
                     st.info("化学品物性表为空")
-            # 化学品物性表
+            # 化学品共现 + 交叉分析
+            c3, c4 = st.columns(2)
+            with c3:
+                st.plotly_chart(dashboard.chemical_cooccurrence_heatmap(df_accidents), width='stretch')
+            with c4:
+                st.plotly_chart(dashboard.chemical_accident_type_cross(df_accidents), width='stretch')
+            # 化学品物性数据表
             if not chem_df.empty:
-                with st.expander("化学品物性数据表", expanded=False):
+                with st.expander(f"化学品物性数据表（{chem_total} 种）", expanded=False):
                     display_chem = chem_df[["chemical_name", "english_name", "cas_number", "molecular_weight"]]
                     st.dataframe(display_chem, width='stretch', hide_index=True, height=350)
 
@@ -435,8 +447,22 @@ elif page == "📊 多维数据分析":
             with c1:
                 st.plotly_chart(dashboard.equipment_frequency_bar(df_accidents), width='stretch')
             with c2:
-                # Equipment-type distribution from Neo4j
                 st.plotly_chart(dashboard.neo4j_node_type_pie(neo4j), width='stretch')
+            # 设备-化学品关联
+            if "related_chemicals" in df_accidents.columns and "related_equipment" in df_accidents.columns:
+                st.markdown("**设备 × 化学品关联统计**")
+                from collections import Counter
+                eq_chem = Counter()
+                for _, row in df_accidents.iterrows():
+                    eqs = [e.strip() for e in str(row.get("related_equipment","")).split(",") if len(e.strip())>=2]
+                    chems = [c.strip() for c in str(row.get("related_chemicals","")).split(",") if len(c.strip())>=2]
+                    for eq in eqs[:3]:
+                        for chem in chems[:3]:
+                            eq_chem[f"{eq} + {chem}"] += 1
+                if eq_chem:
+                    top_pairs = eq_chem.most_common(15)
+                    pairs_df = pd.DataFrame(top_pairs, columns=["设备-化学品对", "事故数"])
+                    st.dataframe(pairs_df, width='stretch', hide_index=True, height=400)
 
         with tab4:
             st.markdown(f"Neo4j: **{stats['nodes']:,}** 节点 · **{stats['rels']:,}** 关系 · **{stats['accidents']}** Accident")
