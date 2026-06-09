@@ -48,9 +48,8 @@ class StatsDashboard:
             y="count",
             title="事故年份分布",
             labels={"year": "年份", "count": "事故数量"},
-            color="count",
-            color_continuous_scale="Reds",
         )
+        fig.update_traces(marker_color="#F44336")
         fig.update_layout(
             xaxis_title="年份",
             yaxis_title="事故数量",
@@ -185,12 +184,8 @@ class StatsDashboard:
         if "chemical_name" not in available:
             return self._empty_fig("缺化学品名称数据")
 
-        # 准备数据，处理分子量NaN
+        # 准备数据
         df = chem_df.dropna(subset=available).copy()
-        if "molecular_weight" in df.columns:
-            df["分子量"] = df["molecular_weight"].fillna(100)  # NaN填默认值100
-        else:
-            df["分子量"] = 100
 
         fig = px.scatter(
             df,
@@ -202,7 +197,6 @@ class StatsDashboard:
                 "flash_point": "闪点 (℃)",
                 "lower_explosion_limit": "爆炸下限 (%)",
             },
-            size="分子量",
             color="toxicity_class" if "toxicity_class" in df.columns else None,
             hover_data=["cas_number"],
         )
@@ -399,10 +393,13 @@ class StatsDashboard:
             fig = px.scatter(
                 merged, x="temperature_max", y="accidents",
                 hover_data=["year_month"],
-                title="气温与事故数量关联（月度聚合）",
+                title=f"气温与事故数量关联（月度聚合，天气覆盖{len(merged)}个月）",
                 labels={"temperature_max": "最高气温 (°C)", "accidents": "事故数"},
                 color="temperature_max", color_continuous_scale="RdBu_r",
             )
+            fig.add_annotation(x=0.02, y=0.98, xref="paper", yref="paper",
+                text=f"天气覆盖率约{len(merged)/len(monthly)*100:.0f}%，统计显著性有限",
+                showarrow=False, font=dict(size=11, color="gray"), bgcolor="rgba(0,0,0,0.5)")
             fig.update_layout(height=400)
             return fig
         return None
@@ -553,8 +550,8 @@ class StatsDashboard:
 
         fig = px.scatter(
             df, x="flash_point", y="accident_count",
-            text="chemical_name", size="lower_explosion_limit",
-            title="闪点 vs 事故频次（气泡大小=爆炸下限）",
+            text="chemical_name",
+            title="闪点 vs 事故频次",
             labels={"flash_point": "闪点(℃)", "accident_count": "事故数"},
         )
         fig.update_traces(textposition="top center")
@@ -609,7 +606,7 @@ class StatsDashboard:
         w_explosion = cross[(cross["season"]=="冬")&(cross["type"]=="爆炸")]["count"].sum()
         insight = (f"**发现**: 夏季共 {summer} 起, 冬季 {winter} 起。")
         if s_explosion > w_explosion:
-            insight += f"夏季爆炸事故({s_explosion})多于冬季({w_explosion})，高温可能加剧爆炸风险。"
+            insight += f"夏季爆炸事故({s_explosion})多于冬季({w_explosion})，但数据无法区分温度因素与季节性生产活动差异。"
         return fig, insight
 
     def insight_equipment_chem_pair(self, accidents_df: pd.DataFrame):
@@ -622,9 +619,11 @@ class StatsDashboard:
         for _, r in accidents_df.iterrows():
             eqs = [e.strip() for e in str(r.get("related_equipment","")).split(",") if len(e.strip())>=2]
             chs = [c.strip() for c in str(r.get("related_chemicals","")).split(",") if len(c.strip())>=2]
-            for eq in eqs[:3]:
-                for ch in chs[:3]:
-                    pairs[f"{eq}+{ch}"] += 1
+            # 每起事故只取出现最多的1种设备×1种化学品 避免笛卡尔积虚高
+            eq = eqs[0] if eqs else None
+            ch = chs[0] if chs else None
+            if eq and ch:
+                pairs[f"{eq}+{ch}"] += 1
 
         top = pairs.most_common(12)
         if not top:
@@ -664,7 +663,7 @@ class StatsDashboard:
         insight = (f"**发现**: 2015年前年均 {before2015:.0f} 起, 后年均 {after2015:.0f} 起, "
                    f"变化 {change:+.0f}%。")
         if change < -10:
-            insight += "事故频率显著下降，安全监管政策可能生效。"
+            insight += "事故频率呈下降趋势，与2016年安全生产综合治理时间点吻合，但数据无法证明因果关系。"
         return fig, insight
 
     def insight_cause_pattern(self, accidents_df: pd.DataFrame):
@@ -696,7 +695,7 @@ class StatsDashboard:
 
         violation_pct = cause_count.get("违规操作",0) / sum(cause_count.values()) * 100
         insight = (f"**发现**: 违规操作占根因的 {violation_pct:.0f}%, "
-                   f"是最主要的事故原因。设备故障和管理缺失紧随其后。")
+                   f"是最主要的事故原因。注: 根因来自关键词匹配，'泄漏'等词在根因和后果文本中均出现，分类存在重叠。")
         return fig, insight
 
     def insight_chain_depth(self, neo4j_client):
@@ -753,7 +752,7 @@ class StatsDashboard:
         peak = monthly.loc[monthly["explosion_rate"].idxmax()]
         insight = (f"**发现**: {int(peak['month'])}月爆炸占比最高({peak['explosion_rate']:.1f}%)。")
         if peak["month"] in [6,7,8]:
-            insight += "夏季高温可能增加爆炸风险。"
+            insight += " 夏季月份爆炸占比高于其他季节，但数据无法区分是温度因素还是夏季生产活动增加所致。"
         return fig, insight
 
     # ── 辅助 ───────────────────────────────────────────────────────────────
