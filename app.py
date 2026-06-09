@@ -267,7 +267,10 @@ elif page == "💬 因果推理问答":
     else:
         st.info(f"图谱就绪：{stats['nodes']:,} 节点 · {stats['rels']:,} 关系")
 
-        # 推荐问题
+        # 推荐问题（用 session_state 控制，不覆盖输入框）
+        if "qa_question" not in st.session_state:
+            st.session_state.qa_question = ""
+
         st.markdown("**推荐问题（点击填入）：**")
         examples = [
             "反应釜温度失控如何导致爆炸？",
@@ -276,14 +279,13 @@ elif page == "💬 因果推理问答":
             "盲目施救如何导致事故后果扩大？",
         ]
         cols = st.columns(4)
-        selected_example = None
         for i, ex in enumerate(examples):
             if cols[i].button(ex[:25] + "…", key=f"ex_{i}", use_container_width=True):
-                selected_example = ex
+                st.session_state.qa_question = ex
 
         question = st.text_input(
             "输入问题",
-            value=selected_example or "",
+            key="qa_question",
             placeholder="例如：反应釜温度失控如何导致爆炸？",
         )
 
