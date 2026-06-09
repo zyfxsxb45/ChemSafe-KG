@@ -520,7 +520,9 @@ elif page == "🔗 知识图谱浏览":
             try:
                 from streamlit_agraph import agraph, Node, Edge, Config
 
-                limit = st.slider("节点数上限", 20, 300, min(80, stats["nodes"]), 20)
+                max_nodes = min(500, stats["nodes"])
+                limit = st.slider("节点数上限", 20, max_nodes, min(80, stats["nodes"]), 20)
+                st.caption(f"全图谱共 {stats['nodes']:,} 节点，浏览器渲染上限 {max_nodes}")
 
                 if neo4j.graph and type_filter:
                     # 按筛选类型查询图快照
@@ -575,22 +577,20 @@ elif page == "🔗 知识图谱浏览":
 
                 agraph(nodes=nodes, edges=edges, config=Config(
                     width="100%", height=700, directed=True,
-                    physics={
-                        "enabled": True,
+                    physics=True, hierarchical=False,
+                    nodeHighlightBehavior=True, highlightColor="#F7A7A6",
+                    collapsible=True,
+                    interaction={"hover": True, "tooltipDelay": 100, "navigationButtons": True,
+                                "dragNodes": True, "dragView": True, "zoomView": True},
+                    **{"physics": {
                         "solver": "barnesHut",
                         "barnesHut": {"gravitationalConstant": -8000, "centralGravity": 0.3,
                                         "springLength": 300, "springConstant": 0.01,
                                         "damping": 0.3, "avoidOverlap": 1},
                         "stabilization": {"enabled": True, "iterations": 300,
-                                           "updateInterval": 25, "onlyDynamicEdges": False,
-                                           "fit": True},
-                        "maxVelocity": 30, "minVelocity": 0.75,
-                        "timestep": 0.5,
-                    },
-                    nodeHighlightBehavior=True, highlightColor="#F7A7A6",
-                    collapsible=True,
-                    interaction={"hover": True, "tooltipDelay": 100, "navigationButtons": True,
-                                "dragNodes": True, "dragView": True, "zoomView": True},
+                                           "updateInterval": 25, "fit": True},
+                        "maxVelocity": 30, "minVelocity": 0.75, "timestep": 0.5,
+                    }}
                 ))
                 st.caption(f"显示 {len(nodes)} 节点 / {len(edges)} 边")
 
