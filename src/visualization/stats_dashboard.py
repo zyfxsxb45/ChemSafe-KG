@@ -398,7 +398,6 @@ class StatsDashboard:
 
             fig = px.scatter(
                 merged, x="temperature_max", y="accidents",
-                size="precipitation" if "precipitation" in merged.columns else None,
                 hover_data=["year_month"],
                 title="气温与事故数量关联（月度聚合）",
                 labels={"temperature_max": "最高气温 (°C)", "accidents": "事故数"},
