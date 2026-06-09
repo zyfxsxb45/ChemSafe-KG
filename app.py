@@ -577,20 +577,16 @@ elif page == "🔗 知识图谱浏览":
 
                 agraph(nodes=nodes, edges=edges, config=Config(
                     width="100%", height=700, directed=True,
-                    physics=True, hierarchical=False,
+                    hierarchical=True,
+                    direction="LR",
+                    levelSeparation=250, nodeSpacing=180, treeSpacing=250,
+                    sortMethod="directed", shakeTowards="roots",
                     nodeHighlightBehavior=True, highlightColor="#F7A7A6",
                     collapsible=True,
                     interaction={"hover": True, "tooltipDelay": 100, "navigationButtons": True,
                                 "dragNodes": True, "dragView": True, "zoomView": True},
-                    **{"physics": {
-                        "solver": "barnesHut",
-                        "barnesHut": {"gravitationalConstant": -8000, "centralGravity": 0.3,
-                                        "springLength": 300, "springConstant": 0.01,
-                                        "damping": 0.3, "avoidOverlap": 1},
-                        "stabilization": {"enabled": True, "iterations": 300,
-                                           "updateInterval": 25, "fit": True},
-                        "maxVelocity": 30, "minVelocity": 0.75, "timestep": 0.5,
-                    }}
+                    solver="barnesHut", minVelocity=0.75, maxVelocity=30,
+                    stabilization=True, fit=True,
                 ))
                 st.caption(f"显示 {len(nodes)} 节点 / {len(edges)} 边")
 
