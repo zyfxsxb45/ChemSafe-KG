@@ -200,6 +200,17 @@ if page == "🏠 系统概览":
     if not kg_ok:
         st.warning("知识图谱未连接。请确保 Neo4j 已启动，运行 `python scripts/rebuild_all.py`")
     else:
+        # 加载化学品计数
+        try:
+            import sqlite3 as _sql
+            _c = _sql.connect("data/processed/chemsafe.db")
+            _chem_total = _c.execute("SELECT count(*) FROM chemical_properties").fetchone()[0]
+            _wx = _c.execute("SELECT count(*) FROM accidents WHERE source_url LIKE '微信:%'").fetchone()[0]
+            _c.close()
+        except Exception:
+            _chem_total = 29
+            _wx = 0
+
         st.markdown("---")
         # 六列度量卡片
         c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -246,11 +257,13 @@ if page == "🏠 系统概览":
 
             st.markdown("---")
             st.markdown("### 数据来源")
-            st.markdown("""
+            st.markdown(f"""
             - **mem.gov.cn** 1,261 份
-            - **微信公众号** 74 篇
-            - **PubChem** 29 种
+            - **微信公众号** {_wx} 篇
+            - **化学品物性** {_chem_total} 种
+            - **天气记录** 108 条
             - **时间跨度** 1947–2026
+            - **地点覆盖** 998 条
             """)
 
         st.markdown("---")
@@ -338,19 +351,52 @@ elif page == "📊 多维数据分析":
         from src.visualization.stats_dashboard import StatsDashboard
         dashboard = StatsDashboard()
 
-        # 概要卡片
+        # 加载化学品物性
+        try:
+            chem_df = pd.read_sql("SELECT * FROM chemical_properties", engine)
+            chem_total = len(chem_df)
+            chem_with_mw = chem_df["molecular_weight"].notna().sum()
+            chem_with_cas = chem_df["cas_number"].notna().sum()
+        except Exception:
+            chem_df = pd.DataFrame()
+            chem_total = chem_with_mw = chem_with_cas = 0
+
+        # 天气数据
+        try:
+            weather_df = pd.read_sql("SELECT count(*) as n FROM weather_records", engine)
+            weather_total = weather_df.iloc[0]["n"]
+        except Exception:
+            weather_total = 0
+
+        # 地点覆盖
+        locations_filled = df_accidents["location"].notna().sum() if "location" in df_accidents.columns else 0
+
+        # 统计化学品关联
+        chem_in_accidents = df_accidents["related_chemicals"].notna().sum() if "related_chemicals" in df_accidents.columns else 0
+
+        # 概要卡片 — 三行融合数据
         summary = dashboard.summary_stats(df_accidents, neo4j)
-        c1, c2, c3, c4, c5, c6 = st.columns(6)
-        c1.metric("事故总数", summary["total_accidents"])
-        c2.metric("KG 节点", summary["neo4j_nodes"])
-        c3.metric("KG 关系", summary["neo4j_rels"])
+
+        st.markdown("### 多源数据融合概览")
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("事故总数", f"{summary['total_accidents']:,}")
+        c2.metric("KG 节点/关系", f"{summary['neo4j_nodes']:,}/{summary['neo4j_rels']:,}")
+        c3.metric("化学品物性库", f"{chem_total} 种")
         c4.metric("时间跨度", summary["date_range"])
-        c5.metric("主要类型", summary["top_type"])
-        c6.metric("设备/物料", "688/427")
+        c5.metric("事故含化学品", f"{chem_in_accidents} ({100*chem_in_accidents//max(sql_count,1)}%)")
+
+        c6, c7, c8, c9, c10 = st.columns(5)
+        c6.metric("有CAS号", f"{chem_with_cas}")
+        c7.metric("有分子量", f"{chem_with_mw}")
+        c8.metric("天气记录", f"{weather_total}")
+        c9.metric("地点覆盖", f"{locations_filled}")
+        c10.metric("应急措施", f"{stats['mitigation']}")
 
         st.markdown("---")
 
-        tab1, tab2, tab3, tab4 = st.tabs(["📈 趋势与分布", "🧪 化学品与设备", "🔗 图谱统计", "🗄️ 数据预览"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "📈 趋势与分布", "🧪 化学品物性", "🔧 设备分析", "🔗 图谱统计", "🗄️ 数据预览"
+        ])
 
         with tab1:
             c1, c2 = st.columns(2)
@@ -358,29 +404,63 @@ elif page == "📊 多维数据分析":
                 st.plotly_chart(dashboard.accident_timeline(df_accidents), width='stretch')
             with c2:
                 st.plotly_chart(dashboard.accident_type_pie(df_accidents), width='stretch')
+            # 天气数据展示
+            try:
+                weather_df = pd.read_sql("SELECT * FROM weather_records", engine)
+                if not weather_df.empty:
+                    with st.expander(f"🌤️ 历史天气数据（{len(weather_df)} 条，与事故日期+地点关联）", expanded=False):
+                        st.dataframe(weather_df, width='stretch', hide_index=True, height=200)
+            except Exception:
+                pass
             st.plotly_chart(dashboard.location_bar(df_accidents), width='stretch')
 
         with tab2:
+            st.markdown(f"化学品物性数据库：**{chem_total} 种**（含 {chem_with_cas} 种有CAS号，{chem_with_mw} 种有分子量）")
             c1, c2 = st.columns(2)
             with c1:
                 st.plotly_chart(dashboard.chemical_frequency_bar(df_accidents), width='stretch')
             with c2:
-                st.plotly_chart(dashboard.equipment_frequency_bar(df_accidents), width='stretch')
-            try:
-                chem_df = pd.read_sql("SELECT * FROM chemical_properties", engine)
                 if not chem_df.empty:
                     st.plotly_chart(dashboard.chemical_risk_matrix(chem_df), width='stretch')
-            except Exception:
-                pass
+                else:
+                    st.info("化学品物性表为空")
+            # 化学品物性表
+            if not chem_df.empty:
+                with st.expander("化学品物性数据表", expanded=False):
+                    display_chem = chem_df[["chemical_name", "english_name", "cas_number", "molecular_weight"]]
+                    st.dataframe(display_chem, width='stretch', hide_index=True, height=350)
 
         with tab3:
             c1, c2 = st.columns(2)
             with c1:
-                st.plotly_chart(dashboard.neo4j_node_type_pie(neo4j), width='stretch')
+                st.plotly_chart(dashboard.equipment_frequency_bar(df_accidents), width='stretch')
             with c2:
-                st.plotly_chart(dashboard.causal_chain_sankey(neo4j), width='stretch')
+                # Equipment-type distribution from Neo4j
+                st.plotly_chart(dashboard.neo4j_node_type_pie(neo4j), width='stretch')
 
         with tab4:
+            st.markdown(f"Neo4j: **{stats['nodes']:,}** 节点 · **{stats['rels']:,}** 关系 · **{stats['accidents']}** Accident")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.plotly_chart(dashboard.causal_chain_sankey(neo4j), width='stretch')
+            with c2:
+                # Top connected nodes table from Neo4j
+                if neo4j.graph:
+                    st.markdown("**因果网络关键节点（度中心性 Top 10）**")
+                    top_nodes = neo4j.graph.run("""
+                        MATCH (n)-[r:leads_to]->()
+                        WITH n, count(r) as out_degree
+                        OPTIONAL MATCH ()-[r2:leads_to]->(n)
+                        WITH labels(n)[0] as type, n.name as name, out_degree, count(r2) as in_degree
+                        RETURN type, name, out_degree, in_degree, (out_degree + in_degree) as total
+                        ORDER BY total DESC LIMIT 10
+                    """).data()
+                    top_df = pd.DataFrame(top_nodes)
+                    top_df.columns = ["类型", "节点名", "出度", "入度", "总度"]
+                    st.dataframe(top_df, width='stretch', hide_index=True, height=380)
+
+        with tab5:
+            st.markdown(f"**{sql_count} 条事故记录**")
             cols = ["id", "title", "date", "root_cause", "consequence", "related_chemicals", "related_equipment"]
             display_cols = [c for c in cols if c in df_accidents.columns]
             st.dataframe(df_accidents[display_cols], width='stretch', hide_index=True, height=500)
