@@ -528,20 +528,22 @@ elif page == "🔗 知识图谱浏览":
                 if neo4j.graph and type_filter:
                     label_filter = ", ".join(f"'{t}'" for t in type_filter)
                     graph_data = neo4j.graph.run(f"""
-                        // Step 1: 找度中心性最高的节点
+                        // Step 1: 找最高度节点作为种子
                         MATCH (n)
                         WHERE labels(n)[0] IN [{label_filter}]
                         OPTIONAL MATCH (n)-[r1]->()
                         OPTIONAL MATCH ()-[r2]->(n)
                         WITH n, count(DISTINCT r1) + count(DISTINCT r2) AS degree
-                        ORDER BY degree DESC
-                        LIMIT $limit
-                        WITH collect(n) AS nodes
-                        // Step 2: 只保留至少有一条边在集合内的节点
-                        MATCH (a)-[r]->(b)
-                        WHERE a IN nodes AND b IN nodes
-                        WITH nodes, collect(DISTINCT a) + collect(DISTINCT b) AS connected
-                        WITH [n IN nodes WHERE n IN connected] AS nodes
+                        ORDER BY degree DESC LIMIT 1
+                        // Step 2: 从种子出发做连通分量遍历, 取Top N节点
+                        MATCH path = (n)-[*0..3]-(m)
+                        WHERE labels(m)[0] IN [{label_filter}]
+                        WITH DISTINCT m
+                        OPTIONAL MATCH (m)-[r1]->()
+                        OPTIONAL MATCH ()-[r2]->(m)
+                        WITH m, count(DISTINCT r1) + count(DISTINCT r2) AS degree
+                        ORDER BY degree DESC LIMIT $limit
+                        WITH collect(m) AS nodes
                         // Step 3: 收集边
                         OPTIONAL MATCH (a)-[r]->(b)
                         WHERE a IN nodes AND b IN nodes
@@ -590,7 +592,7 @@ elif page == "🔗 知识图谱浏览":
                     direction="LR",
                     levelSeparation=200, nodeSpacing=150, treeSpacing=200,
                     sortMethod="directed", shakeTowards="roots",
-                    physics=False,
+                    physics=True,
                     nodeHighlightBehavior=True, highlightColor="#F7A7A6",
                     collapsible=True,
                     interaction={"hover": True, "tooltipDelay": 100, "navigationButtons": True,
