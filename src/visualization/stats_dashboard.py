@@ -188,8 +188,15 @@ class StatsDashboard:
         if "chemical_name" not in available:
             return self._empty_fig("缺化学品名称数据")
 
+        # 准备数据，处理分子量NaN
+        df = chem_df.dropna(subset=available).copy()
+        if "molecular_weight" in df.columns:
+            df["分子量"] = df["molecular_weight"].fillna(100)  # NaN填默认值100
+        else:
+            df["分子量"] = 100
+
         fig = px.scatter(
-            chem_df.dropna(subset=available),
+            df,
             x="flash_point",
             y="lower_explosion_limit",
             text="chemical_name",
@@ -198,8 +205,8 @@ class StatsDashboard:
                 "flash_point": "闪点 (℃)",
                 "lower_explosion_limit": "爆炸下限 (%)",
             },
-            size="molecular_weight" if "molecular_weight" in chem_df.columns else None,
-            color="toxicity_class" if "toxicity_class" in chem_df.columns else None,
+            size="分子量",
+            color="toxicity_class" if "toxicity_class" in df.columns else None,
             hover_data=["cas_number"],
         )
         # 安全阈值线
