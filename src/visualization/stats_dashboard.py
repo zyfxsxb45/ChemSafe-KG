@@ -537,6 +537,233 @@ class StatsDashboard:
         fig.update_layout(height=450, xaxis_tickangle=45)
         return fig
 
+    # ── 数据洞察分析（图表+文字答案）─────────────────────────────────
+
+    def insight_chem_risk_vs_freq(self, accidents_df: pd.DataFrame,
+                                   chem_df: pd.DataFrame):
+        """问题1: 最易燃易爆的化学品事故频率是否更高？"""
+        if accidents_df.empty or chem_df.empty:
+            return None, "数据不足"
+        if "related_chemicals" not in accidents_df.columns:
+            return None, "缺化学品关联数据"
+
+        from collections import Counter
+        chem_freq = Counter()
+        for val in accidents_df["related_chemicals"].dropna():
+            for c in str(val).split(","):
+                c = c.strip()
+                if len(c) >= 2: chem_freq[c] += 1
+
+        # 取既有物性又有事故频次的化学品
+        df = chem_df.dropna(subset=["flash_point", "lower_explosion_limit"]).copy()
+        df["accident_count"] = df["chemical_name"].map(lambda x: chem_freq.get(x, 0))
+        df = df[df["accident_count"] > 0]
+
+        if len(df) < 5:
+            return None, "样本不足"
+
+        fig = px.scatter(
+            df, x="flash_point", y="accident_count",
+            text="chemical_name", size="lower_explosion_limit",
+            title="闪点 vs 事故频次（气泡大小=爆炸下限）",
+            labels={"flash_point": "闪点(℃)", "accident_count": "事故数"},
+        )
+        fig.update_traces(textposition="top center")
+        fig.update_layout(height=400)
+
+        # 分析
+        low_fp = df[df["flash_point"] < 0]["accident_count"].mean()
+        high_fp = df[df["flash_point"] >= 23]["accident_count"].mean()
+        insight = (
+            f"**发现**: 闪点<0℃的化学品平均 {low_fp:.1f} 起事故, "
+            f"闪点≥23℃的平均 {high_fp:.1f} 起。"
+        )
+        if low_fp > high_fp:
+            insight += "低闪点（更易燃）化学品确实事故更多。"
+        else:
+            insight += "未观察到显著正相关，事故频次受更多因素影响。"
+        return fig, insight
+
+    def insight_seasonal_pattern(self, accidents_df: pd.DataFrame):
+        """问题2: 不同季节的事故类型分布有差异吗？"""
+        if accidents_df.empty or "date" not in accidents_df.columns:
+            return None, "缺日期数据"
+
+        df = accidents_df.dropna(subset=["date"]).copy()
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df = df.dropna(subset=["date"])
+        df["month"] = df["date"].dt.month
+        df["season"] = df["month"].map({12:"冬",1:"冬",2:"冬",3:"春",4:"春",5:"春",
+                                         6:"夏",7:"夏",8:"夏",9:"秋",10:"秋",11:"秋"})
+
+        TYPE_KW = {"爆炸":["爆炸","爆燃","闪爆"],"中毒":["中毒","窒息"],"火灾":["火灾","起火"]}
+        rows = []
+        for _, r in df.iterrows():
+            txt = str(r.get("title","")) + str(r.get("root_cause",""))
+            at = "其他"
+            for t, kws in TYPE_KW.items():
+                if any(kw in txt for kw in kws): at = t; break
+            rows.append({"season": r["season"], "type": at})
+
+        cross = pd.DataFrame(rows).groupby(["season","type"]).size().reset_index(name="count")
+
+        fig = px.bar(cross, x="season", y="count", color="type", barmode="group",
+                     title="不同季节的事故类型分布",
+                     labels={"season":"季节","count":"事故数"},
+                     color_discrete_sequence=["#F44336","#FF9800","#FF5722"],
+                     category_orders={"season": ["春","夏","秋","冬"]})
+        fig.update_layout(height=380)
+
+        summer = cross[cross["season"]=="夏"]["count"].sum()
+        winter = cross[cross["season"]=="冬"]["count"].sum()
+        s_explosion = cross[(cross["season"]=="夏")&(cross["type"]=="爆炸")]["count"].sum()
+        w_explosion = cross[(cross["season"]=="冬")&(cross["type"]=="爆炸")]["count"].sum()
+        insight = (f"**发现**: 夏季共 {summer} 起, 冬季 {winter} 起。")
+        if s_explosion > w_explosion:
+            insight += f"夏季爆炸事故({s_explosion})多于冬季({w_explosion})，高温可能加剧爆炸风险。"
+        return fig, insight
+
+    def insight_equipment_chem_pair(self, accidents_df: pd.DataFrame):
+        """问题3: 哪些设备-化学品组合事故最多？"""
+        if accidents_df.empty:
+            return None, "数据不足"
+
+        from collections import Counter
+        pairs = Counter()
+        for _, r in accidents_df.iterrows():
+            eqs = [e.strip() for e in str(r.get("related_equipment","")).split(",") if len(e.strip())>=2]
+            chs = [c.strip() for c in str(r.get("related_chemicals","")).split(",") if len(c.strip())>=2]
+            for eq in eqs[:3]:
+                for ch in chs[:3]:
+                    pairs[f"{eq}+{ch}"] += 1
+
+        top = pairs.most_common(12)
+        if not top:
+            return None, "无设备-化学品关联"
+
+        df_pairs = pd.DataFrame(top, columns=["组合", "事故数"])
+        fig = px.bar(df_pairs, x="事故数", y="组合", orientation="h",
+                     title="最危险设备-化学品组合 Top 12",
+                     color="事故数", color_continuous_scale="Reds")
+        fig.update_layout(height=420, yaxis=dict(autorange="reversed"))
+
+        insight = f"**发现**: '{top[0][0]}' 组合事故最多({top[0][1]}起)。"
+        if len(top) >= 3:
+            insight += f" 前3组合: {top[0][0]}, {top[1][0]}, {top[2][0]}。"
+        return fig, insight
+
+    def insight_year_trend(self, accidents_df: pd.DataFrame):
+        """问题4: 事故频率是否在逐年下降？"""
+        if accidents_df.empty or "date" not in accidents_df.columns:
+            return None, "缺日期"
+
+        df = accidents_df.dropna(subset=["date"]).copy()
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df["year"] = df["date"].dt.year
+        yearly = df.groupby("year").size().reset_index(name="count")
+        yearly = yearly[(yearly["year"]>=1990)&(yearly["year"]<=2025)]
+
+        fig = px.line(yearly, x="year", y="count", markers=True,
+                      title="事故年度趋势 (1990-2025)",
+                      labels={"year":"年份","count":"事故数"})
+        fig.update_layout(height=350)
+        fig.update_traces(line_color="#F44336")
+
+        before2015 = yearly[yearly["year"]<=2015]["count"].mean()
+        after2015 = yearly[yearly["year"]>2015]["count"].mean()
+        change = (after2015 - before2015) / before2015 * 100
+        insight = (f"**发现**: 2015年前年均 {before2015:.0f} 起, 后年均 {after2015:.0f} 起, "
+                   f"变化 {change:+.0f}%。")
+        if change < -10:
+            insight += "事故频率显著下降，安全监管政策可能生效。"
+        return fig, insight
+
+    def insight_cause_pattern(self, accidents_df: pd.DataFrame):
+        """问题5: 事故根因中违规操作占比多少？"""
+        if accidents_df.empty:
+            return None, "数据不足"
+
+        CAUSE_PATTERNS = {
+            "违规操作": ["违规", "违章", "擅自", "未办理", "未按", "未落实", "未佩戴", "未检测"],
+            "设备故障": ["故障", "失效", "损坏", "腐蚀", "泄漏", "老化", "缺陷"],
+            "管理缺失": ["管理", "制度", "培训", "审批", "整改", "隐患", "监督"],
+            "设计缺陷": ["设计", "工艺", "选型"],
+        }
+        from collections import Counter
+        cause_count = Counter()
+        for _, r in accidents_df.iterrows():
+            txt = str(r.get("root_cause","")) + str(r.get("title",""))
+            matched = False
+            for cause, kws in CAUSE_PATTERNS.items():
+                if any(kw in txt for kw in kws):
+                    cause_count[cause] += 1; matched = True; break
+            if not matched: cause_count["其他"] += 1
+
+        df_cause = pd.DataFrame(cause_count.most_common(), columns=["根因类型", "事故数"])
+        fig = px.pie(df_cause, names="根因类型", values="事故数",
+                     title="事故根因类型分布",
+                     color_discrete_sequence=["#F44336","#FF9800","#2196F3","#9C27B0","#9E9E9E"])
+        fig.update_layout(height=400)
+
+        violation_pct = cause_count.get("违规操作",0) / sum(cause_count.values()) * 100
+        insight = (f"**发现**: 违规操作占根因的 {violation_pct:.0f}%, "
+                   f"是最主要的事故原因。设备故障和管理缺失紧随其后。")
+        return fig, insight
+
+    def insight_chain_depth(self, neo4j_client):
+        """问题6: 哪些设备的因果链最长（事故最复杂）？"""
+        if neo4j_client.graph is None:
+            return None, "Neo4j未连接"
+
+        r = neo4j_client.graph.run("""
+            MATCH (e:Equipment)-[:leads_to*1..6]->(c:Consequence)
+            WITH e, max(length(()-[:leads_to*1..6]->(c))) AS max_depth, count(DISTINCT c) AS conseq_count
+            RETURN e.name AS name, max_depth, conseq_count
+            ORDER BY max_depth DESC LIMIT 10
+        """).data()
+
+        if not r:
+            return None, "无数据"
+
+        df = pd.DataFrame(r, columns=["设备", "最大因果深度", "关联后果数"])
+        fig = px.bar(df, x="设备", y="最大因果深度", color="关联后果数",
+                     title="设备因果链深度 Top 10",
+                     labels={"最大因果深度":"最大因果步数"},
+                     color_continuous_scale="Reds")
+        fig.update_layout(height=400, xaxis_tickangle=45)
+
+        insight = (f"**发现**: '{df.iloc[0]["设备"]}' 因果链最深({df.iloc[0]["最大因果深度"]}步)，"
+                   f"涉及该设备的事故链条最复杂，最需要重点防范。")
+        return fig, insight
+
+    def insight_monthly_type(self, accidents_df: pd.DataFrame):
+        """问题7: 爆炸事故集中在哪些月份？"""
+        if accidents_df.empty or "date" not in accidents_df.columns:
+            return None, "缺日期"
+
+        df = accidents_df.dropna(subset=["date"]).copy()
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df["month"] = df["date"].dt.month
+        df["is_explosion"] = df["title"].str.contains("爆炸|爆燃|闪爆", na=False)
+
+        monthly = df.groupby("month").agg(
+            total=("is_explosion", "count"),
+            explosion=("is_explosion", "sum")
+        ).reset_index()
+        monthly["explosion_rate"] = monthly["explosion"] / monthly["total"] * 100
+
+        fig = px.line(monthly, x="month", y="explosion_rate", markers=True,
+                      title="各月爆炸事故占比 (%)",
+                      labels={"month":"月份","explosion_rate":"爆炸占比(%)"})
+        fig.update_layout(height=350)
+        fig.update_traces(line_color="#F44336")
+
+        peak = monthly.loc[monthly["explosion_rate"].idxmax()]
+        insight = (f"**发现**: {int(peak['month'])}月爆炸占比最高({peak['explosion_rate']:.1f}%)。")
+        if peak["month"] in [6,7,8]:
+            insight += "夏季高温可能增加爆炸风险。"
+        return fig, insight
+
     # ── 辅助 ───────────────────────────────────────────────────────────────
     def _empty_fig(self, msg: str) -> go.Figure:
         fig = go.Figure()

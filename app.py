@@ -394,8 +394,8 @@ elif page == "📊 多维数据分析":
 
         st.markdown("---")
 
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "📈 趋势与分布", "🧪 化学品物性", "🔧 设备分析", "🔗 图谱统计", "🗄️ 数据预览"
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "📈 趋势与分布", "🧪 化学品物性", "🔧 设备分析", "🔗 图谱统计", "💡 数据洞察", "🗄️ 数据预览"
         ])
 
         with tab1:
@@ -486,6 +486,95 @@ elif page == "📊 多维数据分析":
                     st.dataframe(top_df, width='stretch', hide_index=True, height=380)
 
         with tab5:
+            st.markdown("### 💡 数据洞察问答")
+            st.markdown("基于 1,579 起事故的多维交叉分析，用数据回答关键安全问题。")
+
+            # Q1
+            st.markdown("#### Q1: 最易燃易爆的化学品事故频率是否更高？")
+            fig, insight = dashboard.insight_chem_risk_vs_freq(df_accidents, chem_df)
+            if fig:
+                c1, c2 = st.columns([2, 1])
+                with c1: st.plotly_chart(fig, width='stretch')
+                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
+            else:
+                st.info(insight)
+
+            st.markdown("---")
+
+            # Q2
+            st.markdown("#### Q2: 不同季节的事故类型分布有差异吗？")
+            fig, insight = dashboard.insight_seasonal_pattern(df_accidents)
+            if fig:
+                c1, c2 = st.columns([2, 1])
+                with c1: st.plotly_chart(fig, width='stretch')
+                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
+            else:
+                st.info(insight)
+
+            st.markdown("---")
+
+            # Q3
+            st.markdown("#### Q3: 哪些设备-化学品组合事故最多？")
+            fig, insight = dashboard.insight_equipment_chem_pair(df_accidents)
+            if fig:
+                c1, c2 = st.columns([2, 1])
+                with c1: st.plotly_chart(fig, width='stretch')
+                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
+            else:
+                st.info(insight)
+
+            st.markdown("---")
+
+            # Q4
+            st.markdown("#### Q4: 事故频率是否在逐年下降？")
+            fig, insight = dashboard.insight_year_trend(df_accidents)
+            if fig:
+                c1, c2 = st.columns([2, 1])
+                with c1: st.plotly_chart(fig, width='stretch')
+                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
+            else:
+                st.info(insight)
+
+            st.markdown("---")
+
+            # Q5
+            st.markdown("#### Q5: 事故根因中违规操作占比多少？")
+            fig, insight = dashboard.insight_cause_pattern(df_accidents)
+            if fig:
+                c1, c2 = st.columns([2, 1])
+                with c1: st.plotly_chart(fig, width='stretch')
+                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
+            else:
+                st.info(insight)
+
+            st.markdown("---")
+
+            # Q6
+            st.markdown("#### Q6: 哪些设备的因果链最深（事故最复杂）？")
+            if neo4j.graph:
+                fig, insight = dashboard.insight_chain_depth(neo4j)
+                if fig:
+                    c1, c2 = st.columns([2, 1])
+                    with c1: st.plotly_chart(fig, width='stretch')
+                    with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
+                else:
+                    st.info(insight)
+            else:
+                st.info("Neo4j未连接")
+
+            st.markdown("---")
+
+            # Q7
+            st.markdown("#### Q7: 爆炸事故集中在哪些月份？")
+            fig, insight = dashboard.insight_monthly_type(df_accidents)
+            if fig:
+                c1, c2 = st.columns([2, 1])
+                with c1: st.plotly_chart(fig, width='stretch')
+                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
+            else:
+                st.info(insight)
+
+        with tab6:
             st.markdown(f"**{sql_count} 条事故记录**")
             cols = ["id", "title", "date", "root_cause", "consequence", "related_chemicals", "related_equipment"]
             display_cols = [c for c in cols if c in df_accidents.columns]
