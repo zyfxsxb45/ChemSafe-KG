@@ -520,7 +520,7 @@ elif page == "🔗 知识图谱浏览":
             try:
                 from streamlit_agraph import agraph, Node, Edge, Config
 
-                limit = st.slider("节点数上限", 30, 500, min(150, stats["nodes"]), 30)
+                limit = st.slider("节点数上限", 20, 300, min(80, stats["nodes"]), 20)
 
                 if neo4j.graph and type_filter:
                     # 按筛选类型查询图快照
@@ -575,7 +575,8 @@ elif page == "🔗 知识图谱浏览":
 
                 agraph(nodes=nodes, edges=edges, config=Config(
                     width="100%", height=650, directed=True,
-                    physics={"solver": "forceAtlas2Based", "stabilization": {"iterations": 100}},
+                    hierarchical=True,
+                    hierarchicalSortMethod="directed",
                     nodeHighlightBehavior=True, highlightColor="#F7A7A6",
                     collapsible=True,
                     interaction={"hover": True, "tooltipDelay": 100},
