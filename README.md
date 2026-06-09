@@ -172,10 +172,8 @@ ChemSafe-KG/
 
 ## 更多文档
 
-- [技术报告](docs/technical_report.md) — 完整方法论与实验分析
 - [框架说明](docs/framework-guide.md) — 五层架构详解
 - [数据集卡片](data/release/DATASET_CARD.md) — 字段说明与使用限制
-- [答辩 QA 准备](期末汇报材料/QA准备.md) — 52 个问题全覆盖
 
 ---
 
