@@ -528,23 +528,22 @@ elif page == "🔗 知识图谱浏览":
                 if neo4j.graph and type_filter:
                     label_filter = ", ".join(f"'{t}'" for t in type_filter)
                     graph_data = neo4j.graph.run(f"""
-                        // Step 1: 找最高度节点作为种子
-                        MATCH (n)
-                        WHERE labels(n)[0] IN [{label_filter}]
-                        OPTIONAL MATCH (n)-[r1]->()
-                        OPTIONAL MATCH ()-[r2]->(n)
-                        WITH n, count(DISTINCT r1) + count(DISTINCT r2) AS degree
-                        ORDER BY degree DESC LIMIT 1
-                        // Step 2: 从种子出发做连通分量遍历, 取Top N节点
-                        MATCH path = (n)-[*0..3]-(m)
+                        // 从度数最高的5个节点出发, 向外探索10层连通分量
+                        MATCH (seed)
+                        WHERE labels(seed)[0] IN [{label_filter}]
+                        OPTIONAL MATCH (seed)-[r1]->()
+                        OPTIONAL MATCH ()-[r2]->(seed)
+                        WITH seed, count(DISTINCT r1) + count(DISTINCT r2) AS degree
+                        ORDER BY degree DESC LIMIT 5
+                        MATCH path = (seed)-[*0..10]-(m)
                         WHERE labels(m)[0] IN [{label_filter}]
                         WITH DISTINCT m
+                        // 限制总数, 优先高连接度
                         OPTIONAL MATCH (m)-[r1]->()
                         OPTIONAL MATCH ()-[r2]->(m)
                         WITH m, count(DISTINCT r1) + count(DISTINCT r2) AS degree
                         ORDER BY degree DESC LIMIT $limit
                         WITH collect(m) AS nodes
-                        // Step 3: 收集边
                         OPTIONAL MATCH (a)-[r]->(b)
                         WHERE a IN nodes AND b IN nodes
                         RETURN
