@@ -546,33 +546,31 @@ python -c "from py2neo import Graph; g=Graph('bolt://localhost:7687',auth=('neo4
 - ✅ **配置体系**：分层配置，支持 `.env` 环境管理
 - ✅ **数据模型**：图 Schema 和关系表模型已设计
 - ✅ **流水线编排**：`pipeline.py` 支持分阶段执行
-- ✅ **爬虫模块**：`report_crawler.py` mem.gov.cn 解析器已实现（全量月度汇编页，1,261+ 事故）
-- ✅ **微信数据集成**：`process_wechat_data.py` 74篇微信公众号事故分析文章
-- ✅ **批量抽取流水线**：`scripts/run_extraction_pipeline.py` 已完成，支持.txt→LLM→Neo4j+SQLite 双写
-- ✅ **全量重建**：`scripts/rebuild_all.py` 提供从清库到报告的完整重建链路
-- ✅ **续抽取**：`scripts/continue_extraction.py` 支持断点续跑
-- ✅ **日期列修复**：`scripts/backfill_dates.py` 回填 98.3% 记录的日期
-- ✅ **source_url 格式统一**：`scripts/normalize_source_url.py` 统一为 mem:/微信: 前缀
-- ✅ **Accident 聚合节点**：代码已就绪，下次全量重建后生效
-- ✅ **Prompt 事件原子化**：entity 名 ≤15 汉字 + Equipment/Material 优先识别
-- ✅ **PubChem API**：`chemical_api.py` 已实现真实调用（无需 Key）
-- ✅ **气象数据**：`weather_fetcher.py` 已集成 Open-Meteo（免费，无需 Key）
-- ✅ **LLM API**：DeepSeek `deepseek-v4-flash` 已验证可调用
-- ✅ **Neo4j 5.26.25**：已安装运行，Schema 已初始化
-- ✅ **SQLite 数据库**：表结构已创建
-- ✅ **因果路径查询**：`find_causal_paths()` 可实际执行 Cypher 查询
-- ✅ **上下文格式化**：`format_context()` 可将路径转换为结构化文本
-- ✅ **端到端流水线**：`scripts/run_demo_pipeline.py` 已验证通过
-- ✅ **Pipeline CLI**：`pipeline.py` 接入所有真实模块（acquisition/extraction/enrich/qa）
-- ✅ **化学品物性**：29 种危化品物性（PubChem via pubchempy）
-- ✅ **统计仪表盘**：`stats_dashboard.py` 完整实现（8 种图表类型）
-- ✅ **因果路径可视化**：`causal_path_viz.py` 支持单条/多条路径的有向图渲染
-- ✅ **跨源数据链接**：`data_linker.py` 实现化学品链接/事故链接/一致性校验/跨源统计
-- ✅ **JSON 容错恢复**：`llm_client.py` 3级容错（空响应重试 + 自动修复 + 正则提取）
-- ✅ **对照实验**：`run_comparative_experiment.py` Graph RAG vs 纯LLM 10组问题定量对比
-- ✅ **数据洞察**：10 条从 KG 因果网络中挖掘的模式发现
+- ✅ **爬虫模块**：`report_crawler.py` mem.gov.cn 全量月度汇编解析（1,261 份事故报告）
+- ✅ **微信数据集成**：`process_wechat_data.py` 74 篇事故分析文章，Mitigation 主要来源
+- ✅ **全量重建**：`scripts/rebuild_all.py` 从清库到报告的完整自动化链路
+- ✅ **续抽取**：`scripts/continue_extraction.py` 断点续跑
+- ✅ **批量抽取流水线**：200 线程并发，LLM 抽取成功率 99%+
+- ✅ **PubChem API**：`chemical_api.py` 29 种危化品物性（100% 字段完整）
+- ✅ **LLM API**：DeepSeek `deepseek-v4-flash` 已验证
+- ✅ **Neo4j 5.26.25**：6,976 节点 + 23,111 关系 + 1,579 Accident 聚合节点
+- ✅ **SQLite 数据库**：1,579 条事故记录 + 29 种化学品物性
+- ✅ **因果路径查询**：`find_causal_paths()` 双向 Cypher 扩展
+- ✅ **上下文格式化**：`format_context()` 含实体类型标签
+- ✅ **对照实验**：三组 baseline（关键词RAG / GraphRAG / 纯LLM）× 20 题，9 倍幻觉减少
+- ✅ **统计仪表盘**：`stats_dashboard.py` 8 种图表
+- ✅ **因果路径可视化**：`causal_path_viz.py` Plotly 有向图
+- ✅ **跨源数据链接**：`data_linker.py` 化学品链接/一致性校验/跨源统计
+- ✅ **JSON 容错**：`llm_client.py` 3 级容错（空响应重试 + 自动修复 + 正则提取）
+- ✅ **嵌入语义匹配**：`sentence-transformers` 三层融合策略
+- ✅ **Accident 聚合节点**：1,579 个，`belongs_to` 关系归组
+- ✅ **Prompt 迭代**：8 条规则 + 常见错误反例 + Few-shot 示例优化
+- ✅ **date 列修复**：98.3% 回填覆盖率
+- ✅ **source_url 统一**：mem:/微信: 两种前缀
+- ✅ **数据集开源发布**：CSV + DATASET_CARD v2.0
 - ⏳ **PDF 解析**：`pdf_parser.py` 已有基础实现，待集成到批量流水线
 - ❌ **其他数据源爬虫**：ciedu.com.cn(502)、ichemsafe.com(需登录) 待实现
+- ❌ **单元测试**：pytest 在 requirements.txt 但 tests/ 目录为空
 
 ### 7.2 关键风险
 
@@ -586,11 +584,11 @@ python -c "from py2neo import Graph; g=Graph('bolt://localhost:7687',auth=('neo4
 ### 7.3 推荐的开发顺序
 
 1. **第9-10周（已完成）**：环境配置 ✅ | 技术选型 ✅
-2. **第11周（已完成）**：爬虫实现 ✅ | mem.gov.cn 200 份报告 ✅
+2. **第11周（已完成）**：爬虫实现 ✅ | mem.gov.cn 数据采集 ✅
 3. **第12-13周（已完成）**：LLM 抽取 ✅ | Neo4j 入库 ✅ | 批量流水线 ✅
 4. **第14周（已完成）**：Graph RAG 检索 ✅ | 问答生成 ✅ | 前端串联 ✅
 5. **第15周（已完成）**：数据扩充 ✅ | 统计仪表盘 ✅ | 因果路径可视化 ✅ | 多源融合 ✅
-6. **第16周（当前）**：文档完善 → 全量重建 → 期末汇报
+6. **第16周（已完成）**：全量重建 v0.7 ✅ | 三组对照实验 ✅ | 数据集发布 ✅ | 期末汇报准备 ✅
 
 ---
 

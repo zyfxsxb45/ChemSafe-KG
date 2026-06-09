@@ -101,7 +101,10 @@ ChemSafe-KG/
 │   ├── run_demo_pipeline.py         # 端到端演示
 │   ├── run_extraction_pipeline.py   # 批量抽取
 │   ├── run_evaluation.py            # 综合评估（SQL×8 + QA×6 + E/R图 + 性能基准）
-│   ├── run_comparative_experiment.py # Graph RAG vs 纯LLM 对照实验
+│   ├── run_comparative_experiment_v2.py # 三组对照实验（关键词RAG/GraphRAG/纯LLM × 20题）
+│   ├── data_insights.py             # 数据洞察分析（6维度 → Markdown报告）
+│   ├── release_dataset.py           # 数据集发布（CSV + DATASET_CARD）
+│   ├── verify_rebuild.py            # 重建后健康检查
 │   ├── backfill_dates.py            # 日期回填
 │   ├── normalize_source_url.py      # source_url 格式统一
 │   ├── enrich_data.py               # 数据充实
