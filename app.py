@@ -588,10 +588,6 @@ elif page == "🔗 知识图谱浏览":
 
                 agraph(nodes=nodes, edges=edges, config=Config(
                     width="100%", height=700, directed=True,
-                    hierarchical=True,
-                    direction="LR",
-                    levelSeparation=200, nodeSpacing=150, treeSpacing=200,
-                    sortMethod="directed", shakeTowards="roots",
                     physics=True,
                     nodeHighlightBehavior=True, highlightColor="#F7A7A6",
                     collapsible=True,
