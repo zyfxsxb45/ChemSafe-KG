@@ -536,8 +536,13 @@ elif page == "🔗 知识图谱浏览":
                         WITH n, count(DISTINCT r1) + count(DISTINCT r2) AS degree
                         ORDER BY degree DESC
                         LIMIT $limit
-                        // Step 2: 收集这些节点及其之间的关系
                         WITH collect(n) AS nodes
+                        // Step 2: 只保留至少有一条边在集合内的节点
+                        MATCH (a)-[r]->(b)
+                        WHERE a IN nodes AND b IN nodes
+                        WITH nodes, collect(DISTINCT a) + collect(DISTINCT b) AS connected
+                        WITH [n IN nodes WHERE n IN connected] AS nodes
+                        // Step 3: 收集边
                         OPTIONAL MATCH (a)-[r]->(b)
                         WHERE a IN nodes AND b IN nodes
                         RETURN
@@ -583,14 +588,13 @@ elif page == "🔗 知识图谱浏览":
                     width="100%", height=700, directed=True,
                     hierarchical=True,
                     direction="LR",
-                    levelSeparation=250, nodeSpacing=180, treeSpacing=250,
+                    levelSeparation=200, nodeSpacing=150, treeSpacing=200,
                     sortMethod="directed", shakeTowards="roots",
+                    physics=False,
                     nodeHighlightBehavior=True, highlightColor="#F7A7A6",
                     collapsible=True,
                     interaction={"hover": True, "tooltipDelay": 100, "navigationButtons": True,
                                 "dragNodes": True, "dragView": True, "zoomView": True},
-                    solver="barnesHut", minVelocity=0.75, maxVelocity=30,
-                    stabilization=True, fit=True,
                 ))
                 st.caption(f"显示 {len(nodes)} 节点 / {len(edges)} 边")
 
