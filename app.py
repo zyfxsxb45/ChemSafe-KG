@@ -589,6 +589,8 @@ elif page == "🔗 知识图谱浏览":
                 agraph(nodes=nodes, edges=edges, config=Config(
                     width="100%", height=700, directed=True,
                     physics=True,
+                    maxVelocity=15, minVelocity=1.5,
+                    stabilization=True, fit=True,
                     nodeHighlightBehavior=True, highlightColor="#F7A7A6",
                     collapsible=True,
                     interaction={"hover": True, "tooltipDelay": 100, "navigationButtons": True,
