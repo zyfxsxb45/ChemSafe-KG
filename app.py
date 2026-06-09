@@ -521,18 +521,22 @@ elif page == "🔗 知识图谱浏览":
                 from streamlit_agraph import agraph, Node, Edge, Config
 
                 max_nodes = min(500, stats["nodes"])
-                limit = st.slider("节点数上限", 20, max_nodes, min(80, stats["nodes"]), 20)
-                st.caption(f"全图谱共 {stats['nodes']:,} 节点，浏览器渲染上限 {max_nodes}")
+                limit = st.slider("核心节点数", 15, min(200, stats["nodes"]), 60, 10,
+                    help="按度中心性排序，只取连接最多的节点")
+                st.caption(f"全图谱 {stats['nodes']:,} 节点，展示度中心性 Top {limit}")
 
                 if neo4j.graph and type_filter:
-                    # 按筛选类型查询图快照
                     label_filter = ", ".join(f"'{t}'" for t in type_filter)
-                    _limit = limit
                     graph_data = neo4j.graph.run(f"""
+                        // Step 1: 找度中心性最高的节点
                         MATCH (n)
                         WHERE labels(n)[0] IN [{label_filter}]
-                        WITH n ORDER BY coalesce(n.name, elementId(n))
-                        LIMIT $_limit
+                        OPTIONAL MATCH (n)-[r1]->()
+                        OPTIONAL MATCH ()-[r2]->(n)
+                        WITH n, count(DISTINCT r1) + count(DISTINCT r2) AS degree
+                        ORDER BY degree DESC
+                        LIMIT $limit
+                        // Step 2: 收集这些节点及其之间的关系
                         WITH collect(n) AS nodes
                         OPTIONAL MATCH (a)-[r]->(b)
                         WHERE a IN nodes AND b IN nodes
@@ -550,7 +554,7 @@ elif page == "🔗 知识图谱浏览":
                             label: type(rel.r),
                             title: coalesce(rel.r.source, "")
                           }}] AS edges
-                    """, _limit=limit).data()
+                    """, limit=limit).data()
                 else:
                     graph_data = neo4j.get_graph_snapshot(limit=limit)
 
