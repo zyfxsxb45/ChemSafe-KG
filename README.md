@@ -1,190 +1,186 @@
 # ChemSafe-KG
 
-> **基于大模型驱动的化工安全事故知识图谱构建与因果推理问答系统**  
-> 数据库技术及应用课程项目 · 大二下  
-> **v0.7.0** — 6,976 节点 / 23,111 关系 · 1,579 事故 · 三组对照实验 · 9×幻觉减少
+> **LLM 驱动的化工安全事故知识图谱构建与因果推理问答系统**  
+> 数据库技术及应用课程项目 · 清华大学化工系  
+> **v0.7** · 1,579 起事故 · 6,976 节点 · 23,111 关系 · 9× 幻觉减少  
+> [📦 数据集下载](https://github.com/zyfxsxb45/ChemSafe-KG/releases/tag/v0.7)
 
 ---
 
-## 项目简介
+## 一句话说清楚
 
-ChemSafe-KG 是一个端到端的化工安全知识图谱系统，核心创新点：
+用 DeepSeek 从 1,300 份中文化工事故报告中自动抽取因果链，建成知识图谱。然后用图谱约束大模型，让它回答问题时只能引用有据可查的内容。实验结果：纯 LLM 每题编造 5.95 个实体，Graph RAG 压到 0.65 个。
 
-1. **LLM 驱动的自动化 KG 构建** — Prompt Chain 策略驱动 DeepSeek 从 1,300+ 份非结构化事故报告中自动抽取实体与因果链，8 条迭代规则 + Few-shot 示例 + JSON 3 级容错，成功率 99%+
-2. **因果约束的 Graph RAG 问答** — 三层实体匹配（精确/关键词/嵌入语义）→ Cypher 因果路径检索 → 约束生成 + 来源引用。三组对照实验（关键词RAG / Graph RAG / 纯LLM）证明：幻觉减少 **9 倍**，诚实拒答率从 0% 提升至 55%
-3. **多源数据融合分析** — mem.gov.cn 全量月度汇编（1,261 份）+ 微信公众号事故分析（74 篇）+ PubChem 化学品物性（72 种）+ 历史天气（108 条），双存储（Neo4j + SQLite）+ 跨源链接
+不是 "LLM + 向量检索"，是 **LLM 建 KG → KG 约束 LLM** 的闭环。
 
-覆盖课程全部核心模块：Pandas 数据处理、SQL/图数据库、LLM4Data、Data4LLM、数据可视化。
+---
 
-## 数据规模（v0.7 全量重建）
+## 数据规模
 
 | 指标 | 数值 |
 |------|------|
 | 知识图谱节点 | **6,976**（Abnormal 3,570 / Accident 1,579 / Equipment 688 / Consequence 641 / Material 427 / Mitigation 71） |
-| 因果关系边 | **23,111** |
-| SQLite 事故记录 | **1,579**（100% 含根原因与后果，79% 含日期） |
-| 事故报告来源 | **1,261** 份 mem.gov.cn + **74** 篇微信公众号（拆分为 326 段独立事故） |
-| 化学品物性 | **72** 种（含闪点26种、爆炸极限31种、毒性分类43种） |
-| 天气记录 | **108** 条（Open-Meteo历史天气，匹配事故地点日期） |
-| 事故时间跨度 | 1947–2026（79 年） |
+| 因果关系边 | **23,111**（leads_to / involves / mitigated_by） |
+| 事故记录 | **1,579**（100% 含根因与后果，79% 含日期，100% 含预分类标签） |
+| 化学品物性 | **72** 种（闪点 26 种 / 爆炸极限 31 种 / 毒性分类 43 种） |
+| 天气记录 | **108** 条（Open-Meteo 历史天气，匹配事故地点与日期） |
+| 地理位置 | **998** 条（从事故标题提取省/市） |
+| 时间跨度 | 1947–2026 |
 
-## 核心实验结果（三组对照实验，20 题 × 7 种因果模式）
+---
 
-| 指标 | 关键词RAG | Graph RAG | 纯 LLM |
-|------|----------|-----------|--------|
+## 核心实验
+
+**三组对照，同模型，唯一变量是检索方式。**
+
+20 道题 × 7 种因果模式 × 3 组 baseline × 4 维评估。
+
+| 指标 | 关键词 RAG | Graph RAG | 纯 LLM |
+|------|-----------|-----------|--------|
 | 无幻觉率 | 40% | **70%** | 5% |
 | 来源可追溯率 | 100% | 55% | 0% |
 | 诚实拒答率 | 10% | **55%** | 0% |
 | 平均幻觉实体数 | 1.2 | **0.65** | 5.95 |
 
-> Graph RAG 比纯 LLM 减少 **9 倍**幻觉。详见 `scripts/run_comparative_experiment_v2.py`
+> Graph RAG 比纯 LLM 减少 **9 倍**幻觉。55% 的诚实拒答不是能力不足——是有意选择 "宁可不答，不瞎答"。
 
-## 快速开始
-
-```bash
-# 1. 安装依赖
-pip install -r requirements.txt
-
-# 2. 配置环境变量
-cp .env.example .env   # 填入 LLM_API_KEY 和 Neo4j 密码
-
-# 3. 全量重建（推荐，一键完成所有步骤）
-python scripts/rebuild_all.py
-
-# 4. 或分阶段运行
-python pipeline.py --stage acquisition  # 爬虫采集
-python pipeline.py --stage extraction   # LLM 抽取
-python pipeline.py --stage enrich       # 数据充实
-python pipeline.py --stage qa           # 问答验证
-
-# 5. 续抽取（只处理新增文件）
-python scripts/continue_extraction.py
-
-# 6. 对照实验（三组 baseline）
-python scripts/run_comparative_experiment_v2.py
-
-# 7. 启动 Web 应用
-streamlit run app.py                    # → http://localhost:8501
-```
+---
 
 ## 系统架构
 
 ```
-Streamlit Web 应用层 (问答 + 可视化 + 管理)
-┃  Graph RAG 问答层 (三层实体融合 → 因果路径检索 → 约束生成 + 来源引用)
-┃  知识存储层 (Neo4j 5.26.25 + SQLite + 4索引 + 分析视图 + 跨源链接)
-┃  LLM 知识抽取层 (DeepSeek deepseek-v4-flash + Prompt Chain + JSON 3级容错)
-┃  数据获取与预处理层 (爬虫 + 文本清洗 + 多源融合)
+┌─ Streamlit Web 应用 ──────────────────────────────────────┐
+│  问答 · 6维数据分析 · 交互式图谱 · 因果路径探索              │
+├─ Graph RAG 检索 ─────────────────────────────────────────┤
+│  三层实体匹配(精确/关键词/嵌入语义) → Cypher因果路径 → 约束生成  │
+├─ 双存储 ────────────────────────────────────────────────┤
+│  Neo4j 5.26(因果链图) + SQLite(结构化记录 + 统计分析)       │
+├─ LLM 知识抽取 ──────────────────────────────────────────┤
+│  DeepSeek v4-flash · Prompt Chain(8条规则) · JSON 3级容错  │
+├─ 数据获取 ───────────────────────────────────────────────┤
+│  mem.gov.cn(1,261份) · 微信公众号(74篇) · PubChem(72种) · Open-Meteo(108条) │
+└─────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 快速开始
+
+```bash
+# 1. 安装
+pip install -r requirements.txt
+
+# 2. 配置
+cp .env.example .env        # 填入 LLM_API_KEY 和 NEO4J_PASSWORD
+
+# 3. 启动 Web 应用（需要 Neo4j 运行中 + 数据库已构建）
+streamlit run app.py
+```
+
+**从头构建数据集**（需要 LLM API key + Neo4j 运行中）：
+
+```bash
+python scripts/rebuild_all.py    # 全量重建：爬虫 → 抽取 → 充实 → 验证
+```
+
+**运行对照实验**（需要 Neo4j 运行中 + 图谱已构建）：
+
+```bash
+python scripts/run_comparative_experiment_v2.py
+```
+
+**下载预构建数据集**（无需 LLM API key，直接使用 CSV）：
+
+→ [GitHub Releases v0.7](https://github.com/zyfxsxb45/ChemSafe-KG/releases/tag/v0.7)
+
+---
 
 ## 项目结构
 
 ```
 ChemSafe-KG/
-├── app.py                          # Streamlit 应用入口（5页面）
-├── pipeline.py                     # CLI 全流程编排器
-├── config/                         # 全局配置
+├── app.py                              # Streamlit 应用（5 页面 + 6 标签页分析）
+├── pipeline.py                         # CLI 流程编排
+├── config/                             # 全局配置（数据库 + LLM + API）
 ├── src/
-│   ├── acquisition/                # 爬虫（mem.gov.cn/CSB）+ PubChem + Open-Meteo
-│   ├── preprocessing/              # 文本清洗 + PDF解析 + 多源融合
-│   ├── extraction/                 # LLM 抽取引擎（Prompt Chain + JSON容错 + 事件原子化）
-│   ├── storage/                    # Neo4j + SQLite + Schema + 跨源链接 + Accident聚合
-│   ├── retrieval/                  # 因果路径检索 + 三层实体匹配 + 嵌入语义
-│   ├── qa/                         # Graph RAG 约束问答 + 降级处理
-│   └── visualization/              # 10种图表 + 因果路径有向图 + KG可视化
+│   ├── acquisition/                    # 爬虫 + PubChem + Open-Meteo
+│   ├── preprocessing/                  # 文本清洗 + 多源融合
+│   ├── extraction/                     # LLM 抽取引擎（Prompt Chain + 容错）
+│   ├── storage/                        # Neo4j + SQLite + DataLinker + Schema
+│   ├── retrieval/                      # 因果路径检索 + 三层匹配 + 嵌入语义
+│   ├── qa/                             # Graph RAG 约束生成
+│   └── visualization/                  # 10+ 图表 + 图谱可视化 + 数据洞察
 ├── scripts/
-│   ├── rebuild_all.py               # ★ 全量重建（清库→爬虫→微信→抽取→充实→验证）
-│   ├── continue_extraction.py       # 续抽取（只处理新增文件，断点续跑）
-│   ├── process_wechat_data.py       # 微信公众号数据预处理
-│   ├── run_demo_pipeline.py         # 端到端演示
-│   ├── run_extraction_pipeline.py   # 批量抽取
-│   ├── run_evaluation.py            # 综合评估（SQL×8 + QA×6 + E/R图 + 性能基准）
-│   ├── run_comparative_experiment_v2.py # 三组对照实验（关键词RAG/GraphRAG/纯LLM × 20题）
-│   ├── data_insights.py             # 数据洞察分析（6维度 → Markdown报告）
-│   ├── release_dataset.py           # 数据集发布（CSV + DATASET_CARD）
-│   ├── verify_rebuild.py            # 重建后健康检查
-│   ├── backfill_dates.py            # 日期回填
-│   ├── normalize_source_url.py      # source_url 格式统一
-│   ├── enrich_data.py               # 数据充实
-│   ├── init_db.py                   # 初始化
-│   └── seed_data.py                 # 种子数据
-├── data/                           # 原始/处理后/外部数据
+│   ├── rebuild_all.py                  # ★ 全量重建（6 步自动化）
+│   ├── run_comparative_experiment_v2.py # 三组对照实验
+│   ├── classify_types.py               # 事故类型预分类
+│   ├── enrich_chemicals.py             # 化学品物性扩充
+│   ├── enrich_weather.py               # 天气数据匹配
+│   ├── seed_chemicals.py               # PubChem 查询
+│   ├── seed_safety.py                  # 安全物性填充
+│   ├── release_dataset.py              # 数据集导出
+│   └── verify_rebuild.py               # 重建后验证
+├── data/
+│   ├── raw/                            # 原始采集数据
+│   ├── processed/                      # SQLite 数据库 + 实验报告
+│   └── release/                        # 公开数据集 CSV
 └── docs/
-    └── framework-guide.md           # 详细框架说明
+    └── technical_report.md             # 详细技术报告
 ```
+
+---
+
+## 关键设计决策
+
+**为什么双存储？** Neo4j 做因果链（"A 导致 B"天然有向边，变长路径查询一行 Cypher）。SQLite 做统计分析（COUNT + GROUP BY 比 Cypher 简洁）。不是过度设计——两种数据库解决的问题类型确实不同。
+
+**为什么不用 LangChain？** 通用框架不能适配我们的 Prompt Chain（8 条专用规则 + 5 实体 × 3 关系 + Few-shot 示例）。自己实现给的控制粒度更大。
+
+**为什么 temperature 设为 0.5？** 0.1 产生大量空响应（模型太 "确定"，JSON 长输出卡住）。0.7 输出不稳定。0.5 是空响应率 <1% 和抽取一致性之间的平衡点。
+
+**为什么 max_tokens 是 16384？** 4096 截断 JSON 数组，8192 偶发截断。复杂事故多实体多关系需要完整输出。代价是 token 消耗增加，但 200 线程并发下成本可控。
+
+---
+
+## 已知局限
+
+四个坦诚的不足：
+
+1. **数据天花板**。月度汇编平均 150 字——无论怎样优化 Prompt，因果链深不过 3 层。不是算法瓶颈，是源材料的信息上限。
+2. **天气覆盖率 9%**。108 条天气 vs 1,247 条有日期事故。月度汇编不写精确时间，"某厂""某企业"无法匹配经纬度。只能看趋势，做不出统计显著推断。
+3. **图谱可视化受框架限制**。streamlit-agraph 不允许自定义 barnesHut 物理参数。四个方案迭代才找到可用效果，但距 "好" 仍有距离。
+4. **测试覆盖率为零**。十几版 Prompt 迭代全靠手动跑几个例子。如果有回归测试，优化效率提升 5 倍以上。
+
+---
 
 ## 技术栈
 
-| 组件 | 技术 | 用途 |
-|------|------|------|
-| 图数据库 | Neo4j 5.26.25 + py2neo | 知识图谱存储与因果路径查询 |
-| 关系数据库 | SQLite + SQLAlchemy（4索引 + 1分析视图） | 结构化数据存储 |
-| LLM 服务 | DeepSeek deepseek-v4-flash（OpenAI 协议） | 实体抽取、答案生成 |
-| 前端 | Streamlit + Plotly + streamlit-agraph | 交互式 Web 应用 |
-| 嵌入匹配 | sentence-transformers（v0.6: 实体清洗 + 自适应阈值 + 三层融合） | 语义实体对齐 |
-| 分词 | jieba | 中文分词与实体提取 |
-| 数据采集 | requests + BeautifulSoup + lxml | 爬虫（mem.gov.cn） |
-| 化学品 API | pubchempy（PubChem，免费） | 物性数据查询 |
-| 气象 API | Open-Meteo（免费，1940年起） | 历史天气数据查询 |
-
-## Web 应用功能
-
-| 页面 | 功能 |
+| 组件 | 技术 |
 |------|------|
-| **系统概览** | 实时 Neo4j 节点/关系统计，架构图 |
-| **因果推理问答** | 自然语言输入 → 三层实体融合 → 因果路径检索 → Graph RAG 约束生成 → 答案 + [路径N]来源引用 |
-| **多维数据分析** | 4 标签页：趋势分布、化学品设备频次、图谱统计（饼图+桑基图）、数据表预览 |
-| **知识图谱浏览** | streamlit-agraph 交互式图谱 + 实体搜索因果路径探索 + 路径有向图可视化 |
-| **系统管理** | 数据流水线控制、数据库状态、配置检查清单 |
+| LLM | DeepSeek deepseek-v4-flash（OpenAI 协议） |
+| 图数据库 | Neo4j 5.26.25 + py2neo |
+| 关系数据库 | SQLite + SQLAlchemy（4 索引） |
+| 前端 | Streamlit + Plotly + streamlit-agraph |
+| 嵌入匹配 | sentence-transformers (paraphrase-multilingual-MiniLM-L12-v2, 470MB) |
+| 中文分词 | jieba |
+| 爬虫 | requests + BeautifulSoup + lxml |
+| 化学品 API | pubchempy（PubChem） |
+| 气象 API | Open-Meteo Archive（免费, 1940 年起） |
+| 并发 | ThreadPoolExecutor（200 线程） |
 
-## 数据采集
+---
 
-| 数据源 | 优先级 | 状态 | 说明 |
-|--------|--------|------|------|
-| **mem.gov.cn** 应急管理部 | P1 | ✅ 1,261 份 | 全量月度汇编页，含根因分析 |
-| **微信公众号** 事故分析 | P1 | ✅ 74 篇 | 含防范措施与教训反思，Mitigation 主要来源 |
-| **PubChem** 化学品物性 | P0 | ✅ 29 种 | 100% 含分子量/CAS/IUPAC |
-| **Open-Meteo** 气象数据 | P2 | ✅ 8 条 | 34 省坐标覆盖 |
-| CSB 美国化学品安全委员会 | P2 | ✅ requests 降级 | JS 渲染需 browser tool |
-| ciedu.com.cn 事故案例库 | P0 | ⚠️ CAPTCHA | 需 browser tool 接入 |
+## 更多文档
 
-## 对比实验
+- [技术报告](docs/technical_report.md) — 完整方法论与实验分析
+- [框架说明](docs/framework-guide.md) — 五层架构详解
+- [数据集卡片](data/release/DATASET_CARD.md) — 字段说明与使用限制
+- [答辩 QA 准备](期末汇报材料/QA准备.md) — 52 个问题全覆盖
 
-| 指标 | Graph RAG | 纯 LLM |
-|------|-----------|--------|
-| 来源可追溯 | **90%** | 0% |
-| 因果链完整 | **90%** | 60% |
-| 平均幻觉数 | **4.4** | 13.2 |
-| 诚实拒答 | ✅ | ❌ |
+---
 
-```bash
-python scripts/run_comparative_experiment.py
-# 输出: data/processed/comparative_experiment.json
-```
+## 成员
 
-## 综合评估
-
-```bash
-python scripts/run_evaluation.py
-# 输出: SQL×8 + QA×6 + E/R图 + Neo4j性能基准
-```
-
-## 开发进度
-
-| 周次 | 任务 | 状态 |
-|------|------|------|
-| 9–16 | 全周期 | ✅ **全部完成** |
-
-## 详细文档
-
-详见 [框架说明文档](docs/framework-guide.md)，包含五层架构详解、TODO 清单、技术债务与风险说明。
-
-## 项目成员
-
-- 翟彝凡（化工系）
-- 余亮阳（化工系）
-- 赵乐毅（化工系）
-
-指导老师：王健楠 教授
-
-本项目仅用于课程学习目的。
+翟彝凡 · 余亮阳 · 赵乐毅  
+指导老师：王健楠 教授  
+清华大学化学工程系 · 2026
