@@ -9,6 +9,8 @@ ChemSafe-KG: Streamlit Web 应用 v0.7
 import streamlit as st
 import logging
 import pandas as pd
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="jieba")
 
 # ─── 页面配置 ─────────────────────────────────────────────────────────────
 st.set_page_config(
