@@ -225,7 +225,7 @@ class Neo4jClient:
         MATCH (n)
         WHERE size(labels(n)) > 0
         WITH n, labels(n)[0] AS label
-        WHERE label IN ['Equipment', 'Material', 'Abnormal_Condition', 'Consequence', 'Mitigation', 'Accident']
+        WHERE label IN ['Equipment', 'Material', 'Abnormal_Condition', 'Consequence', 'Mitigation']
         ORDER BY coalesce(n.name, elementId(n))
         LIMIT $limit
         WITH collect(n) AS nodes
