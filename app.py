@@ -90,8 +90,8 @@ def get_graph_stats(neo4j):
         return {"nodes": 0, "rels": 0, "accidents": 0, "mitigation": 0, "entities": [], "node_types": {}}
 
 @st.cache_data(ttl=300)
-def _get_cached_entities(neo4j):
-    return neo4j.get_all_entity_names()
+def _get_cached_entities(_neo4j):
+    return _neo4j.get_all_entity_names()
 
 def process_question(question, neo4j, retriever, qa):
     import jieba
