@@ -179,7 +179,7 @@ else:
     st.sidebar.warning("Neo4j 未连接")
 
 st.sidebar.markdown("---")
-page = st.sidebar.radio("", [
+page = st.sidebar.radio("导航", [
     "🏠 系统概览", "💬 因果推理问答", "📊 多维数据分析",
     "🔗 知识图谱浏览", "⚙️ 系统管理",
 ])
@@ -280,7 +280,7 @@ elif page == "💬 因果推理问答":
         ]
         cols = st.columns(4)
         for i, ex in enumerate(examples):
-            if cols[i].button(ex[:25] + "…", key=f"ex_{i}", use_container_width=True):
+            if cols[i].button(ex[:25] + "…", key=f"ex_{i}", width='stretch'):
                 st.session_state.qa_question = ex
 
         question = st.text_input(
@@ -289,7 +289,7 @@ elif page == "💬 因果推理问答":
             placeholder="例如：反应釜温度失控如何导致爆炸？",
         )
 
-        if st.button("🔍 检索并回答", type="primary", use_container_width=True) and question:
+        if st.button("🔍 检索并回答", type="primary", width='stretch') and question:
             with st.spinner("正在匹配实体、检索因果路径、调用大模型..."):
                 try:
                     retriever = get_retriever()
@@ -353,35 +353,35 @@ elif page == "📊 多维数据分析":
         with tab1:
             c1, c2 = st.columns(2)
             with c1:
-                st.plotly_chart(dashboard.accident_timeline(df_accidents), use_container_width=True)
+                st.plotly_chart(dashboard.accident_timeline(df_accidents), width='stretch')
             with c2:
-                st.plotly_chart(dashboard.accident_type_pie(df_accidents), use_container_width=True)
-            st.plotly_chart(dashboard.location_bar(df_accidents), use_container_width=True)
+                st.plotly_chart(dashboard.accident_type_pie(df_accidents), width='stretch')
+            st.plotly_chart(dashboard.location_bar(df_accidents), width='stretch')
 
         with tab2:
             c1, c2 = st.columns(2)
             with c1:
-                st.plotly_chart(dashboard.chemical_frequency_bar(df_accidents), use_container_width=True)
+                st.plotly_chart(dashboard.chemical_frequency_bar(df_accidents), width='stretch')
             with c2:
-                st.plotly_chart(dashboard.equipment_frequency_bar(df_accidents), use_container_width=True)
+                st.plotly_chart(dashboard.equipment_frequency_bar(df_accidents), width='stretch')
             try:
                 chem_df = pd.read_sql("SELECT * FROM chemical_properties", engine)
                 if not chem_df.empty:
-                    st.plotly_chart(dashboard.chemical_risk_matrix(chem_df), use_container_width=True)
+                    st.plotly_chart(dashboard.chemical_risk_matrix(chem_df), width='stretch')
             except Exception:
                 pass
 
         with tab3:
             c1, c2 = st.columns(2)
             with c1:
-                st.plotly_chart(dashboard.neo4j_node_type_pie(neo4j), use_container_width=True)
+                st.plotly_chart(dashboard.neo4j_node_type_pie(neo4j), width='stretch')
             with c2:
-                st.plotly_chart(dashboard.causal_chain_sankey(neo4j), use_container_width=True)
+                st.plotly_chart(dashboard.causal_chain_sankey(neo4j), width='stretch')
 
         with tab4:
             cols = ["id", "title", "date", "root_cause", "consequence", "related_chemicals", "related_equipment"]
             display_cols = [c for c in cols if c in df_accidents.columns]
-            st.dataframe(df_accidents[display_cols], use_container_width=True, hide_index=True, height=500)
+            st.dataframe(df_accidents[display_cols], width='stretch', hide_index=True, height=500)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -440,7 +440,7 @@ elif page == "🔗 知识图谱浏览":
                     paths = retriever.retrieve(path_entity, max_depth=4)
                     if paths:
                         st.markdown(f"**{len(paths)} 条路径**")
-                        st.plotly_chart(path_viz.visualize_from_neo4j_paths(paths, top_k=5), use_container_width=True)
+                        st.plotly_chart(path_viz.visualize_from_neo4j_paths(paths, top_k=5), width='stretch')
                         with st.expander("路径文本"):
                             for i, p in enumerate(paths[:10], 1):
                                 nodes = p.get("node_names", [])
