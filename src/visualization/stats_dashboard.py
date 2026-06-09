@@ -193,13 +193,14 @@ class StatsDashboard:
             x="flash_point",
             y="lower_explosion_limit",
             text="chemical_name",
-            title="化学品风险矩阵",
+            title="化学品安全风险矩阵（闪点越低越易燃，爆炸下限越低越危险）",
             labels={
                 "flash_point": "闪点 (℃)",
                 "lower_explosion_limit": "爆炸下限 (%)",
             },
-            size="vapor_pressure" if "vapor_pressure" in chem_df.columns else None,
+            size="molecular_weight" if "molecular_weight" in chem_df.columns else None,
             color="toxicity_class" if "toxicity_class" in chem_df.columns else None,
+            hover_data=["cas_number"],
         )
         # 安全阈值线
         fig.add_hline(y=1.0, line_dash="dash", line_color="orange",
