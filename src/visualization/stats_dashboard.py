@@ -716,8 +716,8 @@ class StatsDashboard:
             return None, "Neo4j未连接"
 
         r = neo4j_client.graph.run("""
-            MATCH (e:Equipment)-[:leads_to*1..6]->(c:Consequence)
-            WITH e, max(length(()-[:leads_to*1..6]->(c))) AS max_depth, count(DISTINCT c) AS conseq_count
+            MATCH path = (e:Equipment)-[:leads_to*1..6]->(c:Consequence)
+            WITH e, max(length(path)) AS max_depth, count(DISTINCT c) AS conseq_count
             RETURN e.name AS name, max_depth, conseq_count
             ORDER BY max_depth DESC LIMIT 10
         """).data()
