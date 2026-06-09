@@ -504,57 +504,146 @@ elif page == "🔗 知识图谱浏览":
         tab_g, tab_p = st.tabs(["🌐 交互式图谱", "🔍 因果路径探索"])
 
         with tab_g:
-            st.markdown(f"**{stats['nodes']:,} 节点 · {stats['rels']:,} 关系**")
+            st.markdown(f"**{stats['nodes']:,} 节点 · {stats['rels']:,} 关系 · {stats['accidents']} 事故**")
+
+            # 实体类型筛选
+            type_filter = st.multiselect(
+                "显示实体类型",
+                options=["Equipment", "Material", "Abnormal_Condition", "Consequence", "Mitigation"],
+                default=["Equipment", "Material", "Abnormal_Condition", "Consequence"],
+                format_func=lambda x: {
+                    "Equipment":"设备","Material":"物料","Abnormal_Condition":"异常",
+                    "Consequence":"后果","Mitigation":"措施"
+                }.get(x, x),
+            )
+
             try:
                 from streamlit_agraph import agraph, Node, Edge, Config
 
-                limit = st.slider("节点数", 20, 300, min(120, stats["nodes"]), 20)
-                graph_data = neo4j.get_graph_snapshot(limit=limit)
+                limit = st.slider("节点数上限", 30, 500, min(150, stats["nodes"]), 30)
+
+                if neo4j.graph and type_filter:
+                    # 按筛选类型查询图快照
+                    label_filter = ", ".join(f"'{t}'" for t in type_filter)
+                    _limit = limit
+                    graph_data = neo4j.graph.run(f"""
+                        MATCH (n)
+                        WHERE labels(n)[0] IN [{label_filter}]
+                        WITH n ORDER BY coalesce(n.name, elementId(n))
+                        LIMIT $_limit
+                        WITH collect(n) AS nodes
+                        OPTIONAL MATCH (a)-[r]->(b)
+                        WHERE a IN nodes AND b IN nodes
+                        RETURN
+                          [n IN nodes | {{
+                            id: elementId(n),
+                            label: coalesce(n.name, elementId(n)),
+                            group: labels(n)[0],
+                            title: coalesce(n.name, elementId(n))
+                          }}] AS nodes,
+                          [rel IN collect({{a: a, r: r, b: b}})
+                           WHERE rel.r IS NOT NULL | {{
+                            from: elementId(rel.a),
+                            to: elementId(rel.b),
+                            label: type(rel.r),
+                            title: coalesce(rel.r.source, "")
+                          }}] AS edges
+                    """, _limit=limit).data()
+                else:
+                    graph_data = neo4j.get_graph_snapshot(limit=limit)
 
                 from src.visualization.kg_visualizer import KGFrontendVisualizer
                 visualizer = KGFrontendVisualizer()
-                vis_data = visualizer.prepare_vis_data(graph_data["nodes"], graph_data["edges"])
+                vis_data = visualizer.prepare_vis_data(
+                    graph_data[0]["nodes"] if isinstance(graph_data, list) and graph_data else graph_data.get("nodes", []),
+                    graph_data[0]["edges"] if isinstance(graph_data, list) and graph_data else graph_data.get("edges", []),
+                ) if graph_data else {"nodes": [], "edges": []}
 
-                nodes = [Node(id=n["id"], label=n["label"], title=n.get("title",""),
-                             size=22, color=n.get("color","#999")) for n in vis_data["nodes"]]
-                edges = [Edge(source=e["from"], target=e["to"], label=e.get("label",""))
-                         for e in vis_data["edges"]]
+                # 节点大小按类型区分，适度放大
+                size_map = {"Consequence": 30, "Equipment": 26, "Material": 24,
+                           "Abnormal_Condition": 20, "Mitigation": 18}
+                nodes = [
+                    Node(id=n["id"], label=n["label"], title=n.get("title",""),
+                         size=size_map.get(n.get("group",""), 20), color=n.get("color","#999"))
+                    for n in vis_data["nodes"]
+                ]
+                edges = [
+                    Edge(source=e["from"], target=e["to"],
+                         title=e.get("title",""))  # 隐藏边标签减少杂乱
+                    for e in vis_data["edges"]
+                ]
 
                 agraph(nodes=nodes, edges=edges, config=Config(
-                    width="100%", height=600, directed=True, physics=True,
-                    nodeHighlightBehavior=True, highlightColor="#F7A7A6", collapsible=True
+                    width="100%", height=650, directed=True,
+                    physics={"solver": "forceAtlas2Based", "stabilization": {"iterations": 100}},
+                    nodeHighlightBehavior=True, highlightColor="#F7A7A6",
+                    collapsible=True,
+                    interaction={"hover": True, "tooltipDelay": 100},
                 ))
-                st.caption(f"{len(nodes)} 节点 / {len(edges)} 边")
+                st.caption(f"显示 {len(nodes)} 节点 / {len(edges)} 边")
 
-                with st.expander("图例"):
-                    st.markdown("""
-                    🟢 Equipment (设备)  ·  🔵 Material (物料)  ·  🟠 Abnormal (异常)
-                    🔴 Consequence (后果)  ·  🟣 Mitigation (措施)  ·  ⚪ Accident (事故)
-                    """)
+                # 固定图例
+                c1, c2, c3, c4, c5 = st.columns(5)
+                c1.markdown("🟢 **设备** (Equipment)")
+                c2.markdown("🔵 **物料** (Material)")
+                c3.markdown("🟠 **异常** (Abnormal)")
+                c4.markdown("🔴 **后果** (Consequence)")
+                c5.markdown("🟣 **措施** (Mitigation)")
+                st.caption("拖拽节点 · 滚轮缩放 · 点击高亮关联 · 双击聚焦")
+
             except Exception as e:
                 st.warning(f"图谱渲染需 streamlit-agraph: `pip install streamlit-agraph`\n\n{e}")
 
         with tab_p:
             st.markdown("### 因果路径探索")
-            path_entity = st.selectbox("选择实体", options=stats["entities"][:80] if stats["entities"] else [],
-                                       placeholder="输入搜索...")
+            st.markdown("选择一个实体，查看它在知识图谱中的因果链。")
 
-            if path_entity:
+            # 搜索式输入替代大下拉框
+            search_term = st.text_input(
+                "搜索实体名",
+                placeholder="输入关键词（如：反应釜、硫化氢、违规动火…）",
+                key="path_search"
+            )
+
+            # 模糊匹配
+            if search_term:
+                matched = [e for e in stats["entities"] if search_term in str(e)][:30]
+            else:
+                matched = stats["entities"][:30]
+
+            path_entity = st.selectbox(
+                "匹配结果",
+                options=matched if matched else ["（未找到匹配实体）"],
+                key="path_select"
+            )
+
+            if path_entity and path_entity != "（未找到匹配实体）":
                 retriever = get_retriever()
                 from src.visualization.causal_path_viz import CausalPathVisualizer
                 path_viz = CausalPathVisualizer()
 
+                max_depth = st.slider("因果链最大深度", 2, 6, 3, key="path_depth")
+
                 with st.spinner(f"检索 '{path_entity}' 的因果路径..."):
-                    paths = retriever.retrieve(path_entity, max_depth=4)
+                    paths = retriever.retrieve(path_entity, max_depth=max_depth)
                     if paths:
-                        st.markdown(f"**{len(paths)} 条路径**")
+                        # 按深度分组统计
+                        from collections import Counter
+                        depth_dist = Counter(len(p.get("node_names",[]))-1 for p in paths if p.get("node_names"))
+                        dist_text = " · ".join(f"{d}步:{c}条" for d, c in sorted(depth_dist.items()))
+                        st.markdown(f"**{len(paths)} 条路径**（{dist_text}）")
+
                         st.plotly_chart(path_viz.visualize_from_neo4j_paths(paths, top_k=5), width='stretch')
-                        with st.expander("路径文本"):
-                            for i, p in enumerate(paths[:10], 1):
+
+                        with st.expander(f"查看全部 {min(15, len(paths))} 条路径文本", expanded=False):
+                            for i, p in enumerate(paths[:15], 1):
                                 nodes = p.get("node_names", [])
-                                st.markdown(f"**路径{i}** ({len(nodes)-1}步): {' → '.join(nodes)}")
+                                types = p.get("node_types", [])
+                                type_tags = " ".join(f"[{t}]" for t in types[:3])
+                                st.markdown(f"**路径{i}** ({len(nodes)-1}步) {type_tags}")
+                                st.text(" → ".join(nodes))
                     else:
-                        st.info("暂无因果路径")
+                        st.info(f"'{path_entity}' 暂无因果路径。尝试减少深度或换一个实体。")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -576,8 +665,15 @@ elif page == "⚙️ 系统管理":
                 conn = sqlite3.connect("data/processed/chemsafe.db")
                 acc = conn.execute("SELECT count(*) FROM accidents").fetchone()[0]
                 chem = conn.execute("SELECT count(*) FROM chemical_properties").fetchone()[0]
+                wx = conn.execute("SELECT count(*) FROM accidents WHERE source_url LIKE '微信:%'").fetchone()[0]
+                weather_n = conn.execute("SELECT count(*) FROM weather_records").fetchone()[0]
+                loc_n = conn.execute("SELECT count(*) FROM accidents WHERE location IS NOT NULL AND location != ''").fetchone()[0]
                 conn.close()
-                st.markdown(f"**SQLite 关系数据库**  \n事故: {acc:,} 条  \n化学品: {chem} 种")
+                st.markdown(f"**SQLite 关系数据库**")
+                st.markdown(f"事故: {acc:,} 条 (微信: {wx})")
+                st.markdown(f"化学品物性: {chem} 种")
+                st.markdown(f"天气记录: {weather_n} 条")
+                st.markdown(f"地点覆盖: {loc_n} 条")
             except Exception:
                 st.markdown("**SQLite**  \n未连接")
 
