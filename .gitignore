@@ -58,3 +58,6 @@ data/release/
 
 # 期末汇报材料（不纳入代码仓库）
 期末汇报材料/
+
+scripts/generate_charts.py
+scripts/generate_pptx.py
