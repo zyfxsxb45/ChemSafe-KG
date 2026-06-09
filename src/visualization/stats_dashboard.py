@@ -91,28 +91,25 @@ class StatsDashboard:
 
     # ── 事故类型分布 ───────────────────────────────────────────────────────
     def accident_type_pie(self, df: pd.DataFrame) -> go.Figure:
-        """事故类型分布饼图（基于标题/描述关键词匹配）"""
+        """事故类型分布饼图（基于预分类列）"""
         if df.empty:
             return self._empty_fig("暂无数据")
 
-        type_counts = Counter()
-        text_col = "title" if "title" in df.columns else "summary"
-        for _, row in df.iterrows():
-            txt = str(row.get(text_col, "")) + " " + str(row.get("root_cause", ""))
-            matched = False
-            for typ, keywords in TYPE_KEYWORDS.items():
-                if any(kw in txt for kw in keywords):
-                    type_counts[typ] += 1
-                    matched = True
-            if not matched:
-                type_counts["其他"] += 1
-
-        if not type_counts:
-            return self._empty_fig("无法识别事故类型")
+        if "accident_type" in df.columns:
+            type_counts = df["accident_type"].value_counts()
+        else:
+            # 降级：关键词匹配
+            from collections import Counter
+            type_counter = Counter()
+            for _, row in df.iterrows():
+                txt = str(row.get("title","")) + " " + str(row.get("root_cause",""))
+                for typ, keywords in TYPE_KEYWORDS.items():
+                    if any(kw in txt for kw in keywords):
+                        type_counter[typ] += 1; break
+            type_counts = pd.Series(type_counter)
 
         fig = px.pie(
-            names=list(type_counts.keys()),
-            values=list(type_counts.values()),
+            names=type_counts.index, values=type_counts.values,
             title="事故类型分布",
             color_discrete_sequence=px.colors.qualitative.Set2,
         )
@@ -363,18 +360,11 @@ class StatsDashboard:
             stats["neo4j_nodes"] = 0
             stats["neo4j_rels"] = 0
 
-        # 统计事故类型
-        if not sql_df.empty:
-            type_counter = Counter()
-            text_col = "title" if "title" in sql_df.columns else "summary"
-            for _, row in sql_df.iterrows():
-                txt = str(row.get(text_col, "")) + " " + str(row.get("root_cause", ""))
-                for typ, keywords in TYPE_KEYWORDS.items():
-                    if any(kw in txt for kw in keywords):
-                        type_counter[typ] += 1
-                        break
-            stats["top_type"] = type_counter.most_common(1)[0][0] if type_counter else "未知"
-            stats["type_breakdown"] = dict(type_counter)
+        # 直接用预计算列
+        if "accident_type" in sql_df.columns:
+            type_counts = sql_df["accident_type"].value_counts()
+            stats["top_type"] = type_counts.index[0] if len(type_counts) > 0 else "未知"
+            stats["type_breakdown"] = dict(type_counts)
         else:
             stats["top_type"] = "未知"
             stats["type_breakdown"] = {}
