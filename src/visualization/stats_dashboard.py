@@ -705,12 +705,15 @@ class StatsDashboard:
         if neo4j_client.graph is None:
             return None, "Neo4j未连接"
 
-        r = neo4j_client.graph.run("""
-            MATCH path = (e:Equipment)-[:leads_to*1..6]->(c:Consequence)
-            WITH e, max(length(path)) AS max_depth, count(DISTINCT c) AS conseq_count
-            RETURN e.name AS name, max_depth, conseq_count
-            ORDER BY max_depth DESC LIMIT 10
-        """).data()
+        try:
+            r = neo4j_client.graph.run("""
+                MATCH path = (e:Equipment)-[:leads_to*1..4]->(c:Consequence)
+                WITH e, max(length(path)) AS max_depth, count(DISTINCT c) AS conseq_count
+                RETURN e.name AS name, max_depth, conseq_count
+                ORDER BY max_depth DESC LIMIT 10
+            """).data()
+        except Exception:
+            return None, "查询超时"
 
         if not r:
             return None, "无数据"
