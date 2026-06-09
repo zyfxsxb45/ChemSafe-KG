@@ -574,16 +574,23 @@ elif page == "🔗 知识图谱浏览":
                 ]
 
                 agraph(nodes=nodes, edges=edges, config=Config(
-                    width="100%", height=680, directed=True,
+                    width="100%", height=700, directed=True,
                     physics={
-                        "solver": "repulsion",
-                        "repulsion": {"nodeDistance": 200, "centralGravity": 0.1,
-                                      "springLength": 250, "springConstant": 0.02},
-                        "stabilization": {"iterations": 200},
+                        "enabled": True,
+                        "solver": "barnesHut",
+                        "barnesHut": {"gravitationalConstant": -8000, "centralGravity": 0.3,
+                                        "springLength": 300, "springConstant": 0.01,
+                                        "damping": 0.3, "avoidOverlap": 1},
+                        "stabilization": {"enabled": True, "iterations": 300,
+                                           "updateInterval": 25, "onlyDynamicEdges": False,
+                                           "fit": True},
+                        "maxVelocity": 30, "minVelocity": 0.75,
+                        "timestep": 0.5,
                     },
                     nodeHighlightBehavior=True, highlightColor="#F7A7A6",
                     collapsible=True,
-                    interaction={"hover": True, "tooltipDelay": 100, "navigationButtons": True},
+                    interaction={"hover": True, "tooltipDelay": 100, "navigationButtons": True,
+                                "dragNodes": True, "dragView": True, "zoomView": True},
                 ))
                 st.caption(f"显示 {len(nodes)} 节点 / {len(edges)} 边")
 
