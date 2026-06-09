@@ -560,8 +560,8 @@ elif page == "🔗 知识图谱浏览":
                 ) if graph_data else {"nodes": [], "edges": []}
 
                 # 节点大小按类型区分，适度放大
-                size_map = {"Consequence": 30, "Equipment": 26, "Material": 24,
-                           "Abnormal_Condition": 20, "Mitigation": 18}
+                size_map = {"Consequence": 22, "Equipment": 20, "Material": 18,
+                           "Abnormal_Condition": 15, "Mitigation": 14}
                 nodes = [
                     Node(id=n["id"], label=n["label"], title=n.get("title",""),
                          size=size_map.get(n.get("group",""), 20), color=n.get("color","#999"))
@@ -574,12 +574,16 @@ elif page == "🔗 知识图谱浏览":
                 ]
 
                 agraph(nodes=nodes, edges=edges, config=Config(
-                    width="100%", height=650, directed=True,
-                    hierarchical=True,
-                    hierarchicalSortMethod="directed",
+                    width="100%", height=680, directed=True,
+                    physics={
+                        "solver": "repulsion",
+                        "repulsion": {"nodeDistance": 200, "centralGravity": 0.1,
+                                      "springLength": 250, "springConstant": 0.02},
+                        "stabilization": {"iterations": 200},
+                    },
                     nodeHighlightBehavior=True, highlightColor="#F7A7A6",
                     collapsible=True,
-                    interaction={"hover": True, "tooltipDelay": 100},
+                    interaction={"hover": True, "tooltipDelay": 100, "navigationButtons": True},
                 ))
                 st.caption(f"显示 {len(nodes)} 节点 / {len(edges)} 边")
 
