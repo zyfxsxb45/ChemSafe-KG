@@ -351,6 +351,27 @@ elif page == "📊 多维数据分析":
         from src.visualization.stats_dashboard import StatsDashboard
         dashboard = StatsDashboard()
 
+        # ── 预计算：所有需要遍历1,579行的分类只做一次 ──
+        @st.cache_data(ttl=600)
+        def _precompute(_df_key: str):
+            """预计算事故类型分类 + 化学品/设备频次"""
+            from collections import Counter
+            df = df_accidents  # captured from outer scope
+            TYPE_KW = {"爆炸": ["爆炸","爆燃","闪爆"],"中毒": ["中毒","窒息"],
+                       "火灾": ["火灾","起火"],"泄漏": ["泄漏","泄露"],"坍塌": ["坍塌","倒塌"]}
+            types = []
+            for _, r in df.iterrows():
+                txt = str(r.get("title",""))+" "+str(r.get("root_cause",""))
+                found = "其他"
+                for t, kws in TYPE_KW.items():
+                    if any(kw in txt for kw in kws): found = t; break
+                types.append(found)
+            df = df.copy()
+            df["_type"] = types
+            return df
+
+        df_accidents = _precompute("accidents_v1")
+
         # 加载化学品物性
         try:
             chem_df = pd.read_sql("SELECT * FROM chemical_properties", engine)
