@@ -7,6 +7,7 @@ Neo4j 版本: 5.26.25 (社区版)
 """
 import logging
 from typing import List, Dict, Optional
+from collections import defaultdict
 from py2neo import Graph, Node
 from config.settings import neo4j as neo4j_config
 from config.settings import extraction as extraction_config
@@ -135,8 +136,8 @@ class Neo4jClient:
 
         entity_type_map = entity_type_map or {}
         
-        tx = self.graph.begin()
-        
+        # 按节点和关系类型对三元组进行分组，以便使用 UNWIND 批量执行
+        grouped_triples = defaultdict(list)
         for subj, rel, obj in triples:
             if not subj or not obj:
                 continue
@@ -144,16 +145,20 @@ class Neo4jClient:
             subj_type = _safe_label(entity_type_map.get(subj, "Abnormal_Condition"))
             obj_type = _safe_label(entity_type_map.get(obj, "Abnormal_Condition"))
             rel_type = _safe_relation_type(rel)
+            
+            grouped_triples[(subj_type, obj_type, rel_type)].append({"subj": subj, "obj": obj})
 
+        tx = self.graph.begin()
+        for (stype, otype, rtype), data_list in grouped_triples.items():
             query = f"""
-            MERGE (s:{_cypher_name(subj_type)} {{name: $subj}})
-            MERGE (o:{_cypher_name(obj_type)} {{name: $obj}})
-            MERGE (s)-[r:{_cypher_name(rel_type)} {{source: $source_report}}]->(o)
+            UNWIND $data AS row
+            MERGE (s:{_cypher_name(stype)} {{name: row.subj}})
+            MERGE (o:{_cypher_name(otype)} {{name: row.obj}})
+            MERGE (s)-[r:{_cypher_name(rtype)} {{source: $source_report}}]->(o)
             ON CREATE SET r.created_at = datetime()
             SET r.updated_at = datetime()
             """
-            tx.run(query, subj=subj, obj=obj, source_report=source_report)
-            
+            tx.run(query, data=data_list, source_report=source_report)
         tx.commit()
 
         logger.info(

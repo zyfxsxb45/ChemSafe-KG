@@ -270,7 +270,7 @@ class DataMerger:
             "vapor_pressure", "toxicity_class",
         ]
 
-        count = 0
+        batch_data = []
         for _, row in chemicals.iterrows():
             chem_name = str(row.get("chemical_name", ""))
             if not chem_name:
@@ -282,18 +282,21 @@ class DataMerger:
                 if val is not None and not (isinstance(val, float) and np.isnan(val)):
                     props[p] = val
 
-            if not props:
-                continue
+            if props:
+                batch_data.append({"name": chem_name, "props": props})
 
+        count = 0
+        if batch_data:
             try:
-                set_clause = ", ".join(f"n.{k} = ${k}" for k in props)
                 neo4j_client.graph.run(
-                    f"MATCH (n:Material {{name: $name}}) SET {set_clause}",
-                    name=chem_name, **props,
+                    "UNWIND $batch AS row "
+                    "MATCH (n:Material {name: row.name}) "
+                    "SET n += row.props",
+                    batch=batch_data
                 )
-                count += 1
+                count = len(batch_data)
             except Exception as e:
-                logger.debug(f"Neo4j 化学品属性写入失败 [{chem_name}]: {e}")
+                logger.debug(f"Neo4j 化学品属性批量写入失败: {e}")
 
         logger.info(f"Neo4j 化学品属性融合: {count} 个 Material 节点")
         return count

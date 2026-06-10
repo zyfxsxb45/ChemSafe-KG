@@ -21,6 +21,7 @@ from typing import Optional, Dict, List, Tuple
 
 import pandas as pd
 import requests
+import concurrent.futures
 
 logger = logging.getLogger(__name__)
 
@@ -201,19 +202,23 @@ class WeatherDataFetcher:
           2. 请求失败重试
           3. 缓存已查询结果 (避免重复请求)
         """
-        weather_rows = []
-        for idx, row in accident_records.iterrows():
+        def fetch_single(row):
             loc = row.get("location", "")
             dt = row.get("date")
             if not loc or not dt:
-                continue
-
+                return None
             if isinstance(dt, str):
                 dt = datetime.fromisoformat(dt)
+            return self.fetch_weather_by_location(loc, dt)
 
-            weather = self.fetch_weather_by_location(loc, dt)
-            if weather:
-                weather_rows.append(weather)
+        weather_rows = []
+        # 使用线程池并发请求 API，大幅减少网络 I/O 等待时间
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(fetch_single, row) for _, row in accident_records.iterrows()]
+            for future in concurrent.futures.as_completed(futures):
+                res = future.result()
+                if res:
+                    weather_rows.append(res)
 
         if weather_rows:
             weather_df = pd.DataFrame(weather_rows)
