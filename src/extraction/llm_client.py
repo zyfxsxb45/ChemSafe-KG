@@ -72,6 +72,34 @@ class LLMClient:
                 else:
                     raise
 
+    def chat_stream(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.5,
+    ):
+        """
+        调用 LLM 进行流式文本生成 (Streaming)。
+        """
+        kwargs = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": temperature,
+            "max_tokens": llm_config.MAX_TOKENS,
+            "stream": True,
+        }
+        try:
+            resp = self.client.chat.completions.create(**kwargs)
+            for chunk in resp:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        except Exception as e:
+            logger.error(f"LLM 流式调用失败: {e}")
+            yield f"\n[生成中断: {e}]"
+
     def chat_json(self, system_prompt: str, user_prompt: str) -> dict:
         """
         调用 LLM 并解析 JSON 响应，带容错恢复。

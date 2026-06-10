@@ -4,7 +4,7 @@
 执行 Cypher 查询并将结果格式化为可供 LLM 阅读的上下文。
 """
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,7 @@ class CausalPathRetriever:
         self,
         entity_name: str,
         max_depth: int = 4,
+        progress_callback: Optional[Callable[[str], None]] = None
     ) -> List[Dict]:
         """
         检索从指定实体出发的因果路径。
@@ -30,8 +31,14 @@ class CausalPathRetriever:
         Returns:
             [{"node_names": ["A", "B", "C"], "rel_types": ["leads_to", ...]}, ...]
         """
+        if progress_callback:
+            progress_callback(f"正在图数据库中检索 '{entity_name}' 的因果路径 (最大深度={max_depth})...")
         logger.info(f"检索因果路径: '{entity_name}', depth={max_depth}")
+        
         paths = self.neo4j.find_causal_paths(entity_name, max_depth)
+        
+        if progress_callback:
+            progress_callback(f"检索完成，共找到 {len(paths)} 条相关因果路径。")
         return paths
 
     def format_context(self, paths: List[Dict]) -> str:

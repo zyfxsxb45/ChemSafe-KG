@@ -4,7 +4,7 @@
 将用户问题中识别的实体与知识图谱中的节点进行匹配对齐。
 """
 import logging
-from typing import List, Dict
+from typing import List, Dict, Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,8 @@ class EntityLinker:
             logger.warning(f"加载实体索引失败: {e}")
 
     def link_entities(
-        self, entity_names: List[str], neo4j_client
+        self, entity_names: List[str], neo4j_client,
+        progress_callback: Optional[Callable[[str], None]] = None
     ) -> List[Dict]:
         """
         将实体名列表链接到图数据库中的节点。
@@ -53,10 +54,14 @@ class EntityLinker:
           2. 包含匹配: n.name CONTAINS query
           3. 反向包含: query CONTAINS n.name
         """
+        if progress_callback:
+            progress_callback("正在加载知识图谱实体索引...")
         self._load_entities(neo4j_client)
 
         matched = []
         for name in entity_names:
+            if progress_callback:
+                progress_callback(f"正在匹配实体: '{name}' ...")
             candidate = self._match_one(name)
             if candidate:
                 matched.append(candidate)
