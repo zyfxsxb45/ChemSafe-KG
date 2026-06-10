@@ -184,8 +184,10 @@ class Neo4jClient:
         """
         try:
             # 参数化查询: 以目标实体为中心，向前后双向扩展，查找最完整的因果链
+            # 优化：先 MATCH mid 节点利用索引，再向两端扩展，避免全图扫描
             query = f"""
-            MATCH path = (start)-[:leads_to|involves|mitigated_by*0..{max_depth}]->(mid {{name: $name}})-[:leads_to|involves|mitigated_by*0..{max_depth}]->(end)
+            MATCH (mid {{name: $name}})
+            MATCH path = (start)-[:leads_to|involves|mitigated_by*0..{max_depth}]->(mid)-[:leads_to|involves|mitigated_by*0..{max_depth}]->(end)
             WHERE length(path) > 0
             RETURN [n in nodes(path) | n.name] AS node_names,
                    [n in nodes(path) | labels(n)[0]] AS node_types,
