@@ -569,21 +569,6 @@ elif page == "📊 多维数据分析":
 
             st.markdown("---")
 
-            # Q6
-            st.markdown("#### Q6: 哪些设备的因果链最深（事故最复杂）？")
-            if neo4j.graph:
-                fig, insight = dashboard.insight_chain_depth(neo4j)
-                if fig:
-                    c1, c2 = st.columns([2, 1])
-                    with c1: st.plotly_chart(fig, width='stretch')
-                    with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
-                else:
-                    st.info(insight)
-            else:
-                st.info("Neo4j未连接")
-
-            st.markdown("---")
-
             # Q7
             st.markdown("#### Q7: 爆炸事故集中在哪些月份？")
             fig, insight = dashboard.insight_monthly_type(df_accidents)
