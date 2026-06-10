@@ -72,13 +72,19 @@ def get_embedder():
     from src.retrieval.entity_embedder import EntityEmbedder
     return EntityEmbedder()
 
-@st.cache_data(ttl=3600, show_spinner="正在构建嵌入索引...")
-def _build_embedder_cache(_entity_tuple):
-    """构建嵌入缓存，只运行一次（或实体列表变更时）"""
+@st.cache_resource
+def _get_st_model():
+    """缓存 SentenceTransformer 模型，整个session只加载一次"""
+    from sentence_transformers import SentenceTransformer
+    return SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+
+def _warm_embedder(entities):
+    """预热嵌入：加载模型 + 构建/加载嵌入向量"""
     embedder = get_embedder()
-    entities = list(_entity_tuple)
-    embedder.load_or_build(entities, force_rebuild=False)
-    return True
+    if not embedder._loaded:
+        embedder.model = _get_st_model()
+        embedder.load_or_build(entities, force_rebuild=False)
+    return embedder
 
 def get_graph_stats(neo4j):
     try:
@@ -106,22 +112,28 @@ def _get_cached_entities(_neo4j):
 def process_question(question, neo4j, retriever, qa):
     import jieba
     from src.retrieval.query_analyzer import QueryAnalyzer
-    from src.retrieval.entity_linker import EntityLinker
 
     entities = _get_cached_entities(neo4j)
     analyzer = QueryAnalyzer()
-    linker = EntityLinker()
     analyzed = analyzer.analyze(question)
     words = [w for w in jieba.lcut(question) if len(w) >= 2]
 
-    linked = linker.link_entities(analyzed.get("entities", []), neo4j)
-    l1_matched = [(item["name"], item.get("confidence", 1.0)) for item in linked if item.get("matched")]
+    # L1: 精确匹配 (via EntityLinker, 轻量内存比对)
+    l1_matched = []
+    try:
+        for ent_name in analyzed.get("entities", []):
+            name = ent_name.strip()
+            for e in entities:
+                if e == name or name in e or e in name:
+                    l1_matched.append((e, 1.0)); break
+    except Exception: pass
+
+    # L2: 关键词命中
     l2_scored = [(e, sum(1 for w in words if w in str(e))) for e in entities if sum(1 for w in words if w in str(e)) > 0]
 
     l3_scored = []
     try:
-        _build_embedder_cache(tuple(sorted(entities)))
-        embedder = get_embedder()
+        embedder = _warm_embedder(entities)
         results = embedder.find_similar_multi([question] + words, top_k=8, deduplicate=True)
         l3_scored = [(r["name"], r["score"]) for r in results]
     except Exception:
