@@ -308,9 +308,9 @@ elif page == "💬 因果推理问答":
 
         st.markdown("**推荐问题（点击填入）：**")
         examples = [
-            "硫化氢泄漏会导致什么后果？",
+            "硫化氢溢出会造成什么危害？",
             "违规动火作业如何引发爆炸？",
-            "氯气泄漏会造成什么后果？",
+            "吸入硫化氢会有什么后果？",
             "盲目施救为什么会导致事故扩大？",
         ]
         cols = st.columns(4)
@@ -321,7 +321,7 @@ elif page == "💬 因果推理问答":
         question = st.text_input(
             "输入问题",
             key="qa_question",
-            placeholder="例如：硫化氢泄漏会导致什么后果？",
+            placeholder="例如：硫化氢溢出会造成什么危害？",
         )
 
         if st.button("🔍 检索并回答", type="primary", width='stretch') and question:
