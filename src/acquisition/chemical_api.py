@@ -98,8 +98,6 @@ class ChemicalPropertyFetcher:
             {chemical_name, cas_number, MolecularWeight, BoilingPoint, ...}
             失败返回 None
         """
-        import requests as req
-
         # PubChem 属性名列表
         props = ",".join([
             "MolecularWeight", "CanonicalSMILES", "IUPACName",
@@ -110,7 +108,7 @@ class ChemicalPropertyFetcher:
         url = f"{self.PUBCHEM_BASE}/compound/name/{chemical_name}/property/{props}/JSON"
 
         try:
-            resp = req.get(url, timeout=15)
+            resp = requests.get(url, timeout=15)
             resp.raise_for_status()
             data = resp.json()
 
@@ -145,10 +143,9 @@ class ChemicalPropertyFetcher:
 
         PubChem 通过同名查询可直接获取 CID, 然后通过 Synonym 获取 CAS。
         """
-        import requests as req
         try:
             url = f"{self.PUBCHEM_BASE}/compound/name/{chemical_name}/synonyms/JSON"
-            resp = req.get(url, timeout=10)
+            resp = requests.get(url, timeout=10)
             resp.raise_for_status()
             synonyms = resp.json()
             for item in synonyms["InformationList"]["Information"][0].get("Synonym", []):

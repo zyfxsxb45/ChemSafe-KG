@@ -5,6 +5,7 @@ LLM API 客户端封装
 当前支持 DeepSeek API（OpenAI 兼容协议），通过 .env 配置。
 """
 import json
+import re
 import time
 import logging
 from typing import Optional
@@ -86,8 +87,6 @@ class LLMClient:
         self, text: str, system_prompt: str, user_prompt: str
     ) -> dict:
         """解析 LLM 响应为 JSON，逐级降级恢复"""
-        import re
-
         text = (text or "").strip()
 
         # 空响应 → 用更高温度 + 更短 prompt 重试一次
@@ -137,7 +136,6 @@ class LLMClient:
 
     def _fix_json(self, text: str) -> Optional[str]:
         """尝试修复常见的 JSON 格式错误"""
-        import re
         fixed = text
 
         # 1. 去除尾部多余逗号 (如 {"a": 1,} → {"a": 1})

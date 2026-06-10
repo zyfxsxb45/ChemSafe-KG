@@ -15,6 +15,16 @@ logger = logging.getLogger(__name__)
 class TextCleaner:
     """文本清洗器"""
 
+    _RE_HEADER_FOOTER_1 = re.compile(r'第\s*\d+\s*页\s*共\s*\d+\s*页')
+    _RE_HEADER_FOOTER_2 = re.compile(r'内部资料.*?注意保存')
+    _RE_PHONE = re.compile(r'1[3-9]\d{9}')
+    _RE_ID_CARD = re.compile(r'\d{17}[\dXx]')
+    _RE_CRLF = re.compile(r'\r\n')
+    _RE_SPACES = re.compile(r'[ \t]+')
+    _RE_MULTILINE = re.compile(r'\n{3,}')
+    _RE_FULLWIDTH_EN = re.compile(r'[Ａ-Ｚａ-ｚ]')
+    _RE_FULLWIDTH_NUM = re.compile(r'[０-９]')
+
     def clean_report_text(self, text: str) -> str:
         """
         对单篇事故报告文本进行清洗。
@@ -37,33 +47,27 @@ class TextCleaner:
 
     def _remove_headers_footers(self, text: str) -> str:
         """去除常见的页眉页脚和免责声明"""
-        # 去除类似 "第 x 页 共 y 页"
-        text = re.sub(r'第\s*\d+\s*页\s*共\s*\d+\s*页', '', text)
-        # 去除内部资料等字样
-        text = re.sub(r'内部资料.*?注意保存', '', text)
+        text = self._RE_HEADER_FOOTER_1.sub('', text)
+        text = self._RE_HEADER_FOOTER_2.sub('', text)
         return text.strip()
 
     def _redact_pii(self, text: str) -> str:
         """简单的敏感信息脱敏 (如身份证号、手机号)"""
-        # 手机号脱敏
-        text = re.sub(r'1[3-9]\d{9}', '[手机号]', text)
-        # 身份证号脱敏
-        text = re.sub(r'\d{17}[\dXx]', '[身份证号]', text)
+        text = self._RE_PHONE.sub('[手机号]', text)
+        text = self._RE_ID_CARD.sub('[身份证号]', text)
         return text
 
     def _normalize_whitespace(self, text: str) -> str:
         """规范化空白字符"""
-        text = re.sub(r'\r\n', '\n', text)
-        text = re.sub(r'[ \t]+', ' ', text)
-        text = re.sub(r'\n{3,}', '\n\n', text)
+        text = self._RE_CRLF.sub('\n', text)
+        text = self._RE_SPACES.sub(' ', text)
+        text = self._RE_MULTILINE.sub('\n\n', text)
         return text.strip()
 
     def _normalize_punctuation(self, text: str) -> str:
         """标准化标点符号"""
-        # 全角英文字母 → 半角
-        text = re.sub(r'[Ａ-Ｚａ-ｚ]', lambda m: chr(ord(m.group(0)) - 0xFEE0), text)
-        # 全角数字 → 半角
-        text = re.sub(r'[０-９]', lambda m: chr(ord(m.group(0)) - 0xFEE0), text)
+        text = self._RE_FULLWIDTH_EN.sub(lambda m: chr(ord(m.group(0)) - 0xFEE0), text)
+        text = self._RE_FULLWIDTH_NUM.sub(lambda m: chr(ord(m.group(0)) - 0xFEE0), text)
         return text
 
     def split_into_chunks(self, text: str, max_chars: int = 3000) -> List[str]:

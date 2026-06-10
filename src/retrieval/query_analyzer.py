@@ -22,6 +22,8 @@ class QueryAnalyzer:
         "statistics": ["统计", "趋势", "分布", "最多", "常见"],
     }
 
+    STOP_WORDS = {"怎么", "如何", "为什么", "导致", "发生", "什么", "原因", "引发", "造成"}
+
     def analyze(self, question: str) -> Dict:
         """
         分析用户问题，返回结构化的查询意图。
@@ -67,8 +69,7 @@ class QueryAnalyzer:
             # 提取长度大于等于2的词作为候选实体
             words = [w for w in jieba.lcut(question) if len(w) >= 2]
             # 过滤掉常见的疑问词和动词停用词
-            stop_words = {"怎么", "如何", "为什么", "导致", "发生", "什么", "原因", "引发", "造成"}
-            return [w for w in words if w not in stop_words]
+            return [w for w in words if w not in self.STOP_WORDS]
         except ImportError:
             logger.warning("未安装 jieba，实体提取降级为空")
             return []

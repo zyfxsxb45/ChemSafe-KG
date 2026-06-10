@@ -98,7 +98,6 @@ class StatsDashboard:
             type_counts = df["accident_type"].value_counts()
         else:
             # 降级：关键词匹配
-            from collections import Counter
             type_counter = Counter()
             for _, row in df.iterrows():
                 txt = str(row.get("title","")) + " " + str(row.get("root_cause",""))
@@ -432,7 +431,6 @@ class StatsDashboard:
         if accidents_df.empty or "related_chemicals" not in accidents_df.columns:
             return self._empty_fig("暂无化学品数据")
 
-        from collections import Counter
         import numpy as np
 
         # 提取每起事故的化学品列表
@@ -484,7 +482,6 @@ class StatsDashboard:
             "火灾": ["火灾", "起火"], "泄漏": ["泄漏", "泄露"],
         }
 
-        from collections import Counter
         # 取 Top 10 化学品
         chem_counter = Counter()
         for val in accidents_df["related_chemicals"].dropna():
@@ -533,7 +530,6 @@ class StatsDashboard:
         if "related_chemicals" not in accidents_df.columns:
             return None, "缺化学品关联数据"
 
-        from collections import Counter
         chem_freq = Counter()
         for val in accidents_df["related_chemicals"].dropna():
             for c in str(val).split(","):
@@ -614,7 +610,6 @@ class StatsDashboard:
         if accidents_df.empty:
             return None, "数据不足"
 
-        from collections import Counter
         pairs = Counter()
         for _, r in accidents_df.iterrows():
             eqs = [e.strip() for e in str(r.get("related_equipment","")).split(",") if len(e.strip())>=2]
@@ -677,7 +672,6 @@ class StatsDashboard:
             "管理缺失": ["管理", "制度", "培训", "审批", "整改", "隐患", "监督"],
             "设计缺陷": ["设计", "工艺", "选型"],
         }
-        from collections import Counter
         cause_count = Counter()
         for _, r in accidents_df.iterrows():
             txt = str(r.get("root_cause","")) + str(r.get("title",""))
