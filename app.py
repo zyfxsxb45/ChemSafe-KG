@@ -72,6 +72,14 @@ def get_embedder():
     from src.retrieval.entity_embedder import EntityEmbedder
     return EntityEmbedder()
 
+@st.cache_data(ttl=3600, show_spinner="正在构建嵌入索引...")
+def _build_embedder_cache(_entity_tuple):
+    """构建嵌入缓存，只运行一次（或实体列表变更时）"""
+    embedder = get_embedder()
+    entities = list(_entity_tuple)
+    embedder.load_or_build(entities, force_rebuild=False)
+    return True
+
 def get_graph_stats(neo4j):
     try:
         node_types = {}
@@ -112,8 +120,8 @@ def process_question(question, neo4j, retriever, qa):
 
     l3_scored = []
     try:
+        _build_embedder_cache(tuple(sorted(entities)))
         embedder = get_embedder()
-        embedder.load_or_build(entities)
         results = embedder.find_similar_multi([question] + words, top_k=8, deduplicate=True)
         l3_scored = [(r["name"], r["score"]) for r in results]
     except Exception:
