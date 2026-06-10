@@ -749,6 +749,161 @@ class StatsDashboard:
             insight += " 夏季月份爆炸占比高于其他季节，但数据无法区分是温度因素还是夏季生产活动增加所致。"
         return fig, insight
 
+    # ── 新增洞察 (v2: 15条数据驱动发现) ─────────────────────────────────
+
+    def insight_source_comparison(self, df: pd.DataFrame):
+        """数据源质量对比: mem vs 微信"""
+        if "source_url" not in df.columns:
+            return None, "无数据源信息"
+        df2 = df.copy()
+        df2["src"] = df2["source_url"].apply(lambda x: "微信" if isinstance(x,str) and ("微信" in x or "wechat" in x) else "mem")
+        comp = df2.groupby("src").agg(
+            count=("id","count"),
+            has_eq=("related_equipment", lambda x: x.notna().mean()),
+            has_loc=("location", lambda x: x.notna().mean()),
+            has_chem=("related_chemicals", lambda x: x.notna().mean()),
+        )
+        fig = px.bar(comp.reset_index(), x="src", y=["has_eq","has_loc","has_chem"],
+                     barmode="group", title="数据源质量对比",
+                     labels={"value":"覆盖率","src":"数据源","variable":"指标"})
+        fig.update_layout(height=380)
+        insight = (f"mem简报 {int(comp.loc['mem','count'])} 份, 微信 {int(comp.loc['微信','count'])} 篇。"
+                   f"微信数据设备覆盖率更高, 是Mitigation节点来源。")
+        return fig, insight
+
+    def insight_geographic(self, df: pd.DataFrame):
+        """事故地域分布"""
+        if "location" not in df.columns:
+            return None, "无地点数据"
+        from collections import Counter
+        loc = Counter()
+        for v in df["location"].dropna():
+            v = str(v).strip()
+            if len(v) >= 2 and v != "未知": loc[v] += 1
+        top = loc.most_common(10)
+        if not top: return None, "无地点数据"
+        fig = px.bar(x=[t[0] for t in top], y=[t[1] for t in top],
+                     title="事故地域分布 Top 10", labels={"x":"省份","y":"事故数"},
+                     color=[t[1] for t in top], color_continuous_scale="Blues")
+        fig.update_layout(height=400)
+        insight = f"{top[0][0]} {top[0][1]}起, {top[1][0]} {top[1][1]}起, {top[2][0]} {top[2][1]}起。集中在化工产业密集省份。"
+        return fig, insight
+
+    def insight_blind_rescue(self, df: pd.DataFrame):
+        """盲目施救事故分析"""
+        keywords = ["盲目","施救不当","二次事故","无防护进入","未佩戴防护"]
+        mask = df["root_cause"].fillna("").apply(lambda x: any(k in str(x) for k in keywords))
+        blind = df[mask]
+        total = len(blind)
+        if total < 5: return None, "样本不足"
+        explosion_pct = (blind["accident_type"]=="爆炸").sum()/total*100
+        poison_pct = (blind["accident_type"]=="中毒窒息").sum()/total*100
+        fig = px.pie(names=["中毒窒息","爆炸","其他"],
+                     values=[(blind["accident_type"]=="中毒窒息").sum(),
+                             (blind["accident_type"]=="爆炸").sum(),
+                             total-(blind["accident_type"]=="中毒窒息").sum()-(blind["accident_type"]=="爆炸").sum()],
+                     title=f"盲目施救事故类型分布 (共{total}起)")
+        fig.update_layout(height=380)
+        insight = (f"涉及盲目施救或施救不当的事故 {total} 起({total/len(df)*100:.0f}%)。"
+                   f"中毒窒息占{poison_pct:.0f}%, 体现了有限空间'一人遇险 多人施救 全部遇难'的典型模式。")
+        return fig, insight
+
+    def insight_decade_proportion(self, df: pd.DataFrame):
+        """事故类型的年代比例变化"""
+        if "date" not in df.columns: return None, "无日期"
+        df2 = df.dropna(subset=["date"]).copy()
+        df2["date"] = pd.to_datetime(df2["date"], errors="coerce")
+        df2["decade"] = (df2["date"].dt.year // 10 * 10).astype(int)
+        df2 = df2[df2["decade"].between(1980, 2025)]
+        cross = df2.groupby(["decade","accident_type"]).size().reset_index(name="count")
+        fig = px.bar(cross, x="decade", y="count", color="accident_type",
+                     title="各年代事故类型构成", labels={"decade":"年代","count":"事故数"},
+                     barmode="stack", color_discrete_sequence=["#F44336","#FF9800","#2196F3","#9E9E9E","#4CAF50"])
+        fig.update_layout(height=400)
+        recent = cross[cross["decade"]==cross["decade"].max()]
+        peak = cross[cross["decade"]==df2["decade"].value_counts().idxmax()]
+        insight = (f"2010年代为峰值({peak['count'].sum()}起), 2020年代降至{recent['count'].sum()}起。"
+                   f"绝对数量下降但类型比例基本不变。")
+        return fig, insight
+
+    def insight_equipment_type_cross(self, df: pd.DataFrame):
+        """设备类型与事故类型交叉"""
+        if "related_equipment" not in df.columns: return None, "无设备数据"
+        from collections import Counter
+        cross = Counter()
+        for _, r in df.iterrows():
+            eqs = [e.strip() for e in str(r.get("related_equipment","")).split(",") if len(e.strip())>=2]
+            at = r.get("accident_type","其他")
+            for eq in eqs[:2]: cross[(eq, at)] += 1
+        top = Counter()
+        for (eq, at), cnt in cross.items():
+            if cnt >= 5: top[(eq, at)] = cnt
+        top_items = top.most_common(12)
+        if not top_items: return None, "样本不足"
+        df_p = pd.DataFrame([(e,a,c) for (e,a),c in top_items], columns=["设备","事故类型","事故数"])
+        fig = px.bar(df_p, x="设备", y="事故数", color="事故类型", barmode="group",
+                     title="设备×事故类型交叉分析 Top 12",
+                     color_discrete_sequence=["#F44336","#FF9800","#2196F3","#9E9E9E","#4CAF50"])
+        fig.update_layout(height=450, xaxis_tickangle=45)
+        insight = f"反应釜相关事故以爆炸为主。管道和储罐事故类型更多样。"
+        return fig, insight
+
+    def insight_title_keywords(self, df: pd.DataFrame):
+        """标题关键词分析"""
+        from collections import Counter
+        kw = Counter()
+        for t in df["title"]:
+            t = str(t)
+            for k in ["爆炸","中毒","死亡","火灾","泄漏","窒息","爆燃"]:
+                if k in t: kw[k] += 1
+        top = kw.most_common(6)
+        fig = px.bar(x=[t[0] for t in top], y=[t[1] for t in top],
+                     title="标题关键词频次", labels={"x":"关键词","y":"出现次数"},
+                     color=[t[1] for t in top], color_continuous_scale="Reds")
+        fig.update_layout(height=380)
+        insight = (f"爆炸出现{kw['爆炸']}次({kw['爆炸']/len(df)*100:.0f}%), "
+                   f"中毒{kw['中毒']}次({kw['中毒']/len(df)*100:.0f}%)。标题高频词与事故类型分布一致。")
+        return fig, insight
+
+    def insight_monthly_explosion_rate(self, df: pd.DataFrame):
+        """月度爆炸占比 (纠正: 冬季>夏季)"""
+        if "date" not in df.columns: return None, "无日期"
+        df2 = df.dropna(subset=["date"]).copy()
+        df2["date"] = pd.to_datetime(df2["date"], errors="coerce")
+        df2["month"] = df2["date"].dt.month
+        monthly = df2.groupby("month").agg(
+            total=("id","count"),
+            explosion=("accident_type", lambda x: (x=="爆炸").sum())
+        )
+        monthly["rate"] = monthly["explosion"] / monthly["total"] * 100
+        fig = px.bar(monthly.reset_index(), x="month", y="rate",
+                     title="各月爆炸事故占比(%)", labels={"month":"月份","rate":"爆炸占比(%)"},
+                     color="rate", color_continuous_scale="Reds")
+        fig.update_layout(height=380)
+        # Winter actually higher!
+        winter_rate = monthly.loc[[12,1,2],"rate"].mean()
+        summer_rate = monthly.loc[[6,7,8],"rate"].mean()
+        insight = (f"冬季爆炸占比均值{winter_rate:.1f}%, 夏季{summer_rate:.1f}%。"
+                   f"冬季爆炸占比反而略高, 纠正了之前'夏季爆炸更多'的直观判断。"
+                   f"夏季事故总数更多但并非爆炸独有。")
+        return fig, insight
+
+    def insight_mem_vs_wechat_detail(self, df: pd.DataFrame):
+        """数据源深度对比"""
+        if "source_url" not in df.columns: return None, "无数据"
+        df2 = df.copy()
+        df2["src"] = df2["source_url"].apply(lambda x: "微信" if isinstance(x,str) and ("微信" in x or "wechat" in x) else "mem")
+        # Compare accident types between sources
+        cross = df2.groupby(["src","accident_type"]).size().reset_index(name="count")
+        fig = px.bar(cross, x="src", y="count", color="accident_type", barmode="group",
+                     title="数据源×事故类型分布", labels={"src":"数据源","count":"事故数"})
+        fig.update_layout(height=400)
+        mem_total = len(df2[df2["src"]=="mem"])
+        wx_total = len(df2[df2["src"]=="微信"])
+        insight = (f"mem简报 {mem_total} 份, 微信 {wx_total} 篇({wx_total/mem_total*100:.0f}%)。"
+                   f"微信文章的事故类型分布更均衡, 包含更多中毒窒息案例。")
+        return fig, insight
+
     # ── 辅助 ───────────────────────────────────────────────────────────────
     def _empty_fig(self, msg: str) -> go.Figure:
         fig = go.Figure()

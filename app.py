@@ -594,6 +594,94 @@ elif page == "📊 多维数据分析":
             else:
                 st.info(insight)
 
+            st.markdown("---")
+
+            # Q8: 数据源对比
+            st.markdown("#### Q8: mem简报和微信文章的数据质量有差异吗？")
+            fig, insight = dashboard.insight_source_comparison(df_accidents)
+            if fig:
+                c1, c2 = st.columns([2, 1])
+                with c1: st.plotly_chart(fig, width='stretch')
+                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
+            else: st.info(insight)
+
+            st.markdown("---")
+
+            # Q9: 地域分布
+            st.markdown("#### Q9: 事故集中在哪些省份？")
+            fig, insight = dashboard.insight_geographic(df_accidents)
+            if fig:
+                c1, c2 = st.columns([2, 1])
+                with c1: st.plotly_chart(fig, width='stretch')
+                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
+            else: st.info(insight)
+
+            st.markdown("---")
+
+            # Q10: 盲目施救
+            st.markdown("#### Q10: 盲目施救导致的事故有多大比例？")
+            fig, insight = dashboard.insight_blind_rescue(df_accidents)
+            if fig:
+                c1, c2 = st.columns([2, 1])
+                with c1: st.plotly_chart(fig, width='stretch')
+                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
+            else: st.info(insight)
+
+            st.markdown("---")
+
+            # Q11: 年代比例
+            st.markdown("#### Q11: 事故类型的构成比例随时间变化了吗？")
+            fig, insight = dashboard.insight_decade_proportion(df_accidents)
+            if fig:
+                c1, c2 = st.columns([2, 1])
+                with c1: st.plotly_chart(fig, width='stretch')
+                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
+            else: st.info(insight)
+
+            st.markdown("---")
+
+            # Q12: 设备类型交叉
+            st.markdown("#### Q12: 不同设备发生的事故类型有何差异？")
+            fig, insight = dashboard.insight_equipment_type_cross(df_accidents)
+            if fig:
+                c1, c2 = st.columns([2, 1])
+                with c1: st.plotly_chart(fig, width='stretch')
+                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
+            else: st.info(insight)
+
+            st.markdown("---")
+
+            # Q13: 标题关键词
+            st.markdown("#### Q13: 事故标题中最常出现哪些关键词？")
+            fig, insight = dashboard.insight_title_keywords(df_accidents)
+            if fig:
+                c1, c2 = st.columns([2, 1])
+                with c1: st.plotly_chart(fig, width='stretch')
+                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
+            else: st.info(insight)
+
+            st.markdown("---")
+
+            # Q14: 月度爆炸占比纠正
+            st.markdown("#### Q14: 冬季爆炸占比真的比夏季低吗？")
+            fig, insight = dashboard.insight_monthly_explosion_rate(df_accidents)
+            if fig:
+                c1, c2 = st.columns([2, 1])
+                with c1: st.plotly_chart(fig, width='stretch')
+                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
+            else: st.info(insight)
+
+            st.markdown("---")
+
+            # Q15: 数据源深度对比
+            st.markdown("#### Q15: mem和微信的事故类型构成有何不同？")
+            fig, insight = dashboard.insight_mem_vs_wechat_detail(df_accidents)
+            if fig:
+                c1, c2 = st.columns([2, 1])
+                with c1: st.plotly_chart(fig, width='stretch')
+                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
+            else: st.info(insight)
+
         with tab6:
             st.markdown(f"**{sql_count} 条事故记录**")
             cols = ["id", "title", "date", "root_cause", "consequence", "related_chemicals", "related_equipment"]
