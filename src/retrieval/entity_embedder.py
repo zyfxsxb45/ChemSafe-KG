@@ -106,8 +106,9 @@ class EntityEmbedder:
         if not HAS_ST:
             return
 
-        self.entity_names = entity_names
-        self.entity_keys = [_clean_entity_name(n) for n in entity_names]
+        # 去重并排序，保证每次传入的列表顺序一致，从而稳定命中缓存
+        self.entity_names = sorted(list(set(entity_names)))
+        self.entity_keys = [_clean_entity_name(n) for n in self.entity_names]
 
         if not force_rebuild:
             loaded = self._load_cache()

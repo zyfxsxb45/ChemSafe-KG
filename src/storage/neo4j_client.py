@@ -210,7 +210,7 @@ class Neo4jClient:
                 "MATCH (n) WHERE n.name IS NOT NULL AND size(labels(n)) > 0 "
                 "WITH n, labels(n)[0] AS label "
                 "WHERE label IN ['Equipment', 'Material', 'Abnormal_Condition', 'Consequence', 'Mitigation', 'Accident'] "
-                "RETURN n.name AS name LIMIT 500"
+                "RETURN DISTINCT n.name AS name ORDER BY name"
             ).data()
             return [str(row["name"]) for row in data if row.get("name") is not None]
         except Exception:
