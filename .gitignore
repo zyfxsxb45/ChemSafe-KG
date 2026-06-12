@@ -59,5 +59,9 @@ data/release/*.csv
 # ── 期末汇报材料 (不纳入代码仓库) ──
 期末汇报材料/
 
+# ── PPT/图表生成脚本 (本地工具) ──
+scripts/generate_charts.py
+scripts/generate_pptx.py
+
 # ── 技术报告 (最终提交前不入库) ──
 docs/technical_report.md
