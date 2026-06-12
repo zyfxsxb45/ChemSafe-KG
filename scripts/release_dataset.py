@@ -1,44 +1,46 @@
-"""把 SQLite 最新数据导出到 data/release/"""
-import csv, sqlite3, os
+"""用去重后数据重新导出 release CSV"""
+import csv, json, sqlite3
+import pandas as pd
 
 DB = "data/processed/chemsafe.db"
-RELEASE = "data/release"
-os.makedirs(RELEASE, exist_ok=True)
-
 conn = sqlite3.connect(DB)
 
-# accidents
-with open(os.path.join(RELEASE, "accidents.csv"), "w", newline="", encoding="utf-8") as f:
-    w = csv.writer(f)
-    cols = ["title","date","summary","root_cause","consequence","accident_type",
-            "related_chemicals","related_equipment","source_url","location"]
-    w.writerow(cols)
-    for row in conn.execute(f"SELECT {','.join(cols)} FROM accidents"):
-        w.writerow(row)
-n = conn.execute("SELECT count(*) FROM accidents").fetchone()[0]
-print(f"accidents.csv: {n} + header")
+# Load and dedup
+df = pd.read_sql("SELECT * FROM accidents", conn)
+with open("data/processed/dedup_mapping.json") as f:
+    dup_ids = set(int(k) for k in json.load(f).keys())
 
-# chemical_properties
-with open(os.path.join(RELEASE, "chemical_properties.csv"), "w", newline="", encoding="utf-8") as f:
-    w = csv.writer(f)
-    header = ["chemical_name","cas_number","iupac_name","molecular_weight",
-              "flash_point","lower_explosion_limit","toxicity_class"]
-    w.writerow(header)
-    for row in conn.execute(f"SELECT {','.join(header)} FROM chemical_properties"):
-        w.writerow(row)
-n = conn.execute("SELECT count(*) FROM chemical_properties").fetchone()[0]
-print(f"chemical_properties.csv: {n} + header")
+# Check overlap
+before = len(df)
+dup_in_df = sum(1 for i in df["id"] if i in dup_ids)
+print(f"Before: {before}, Dup IDs in df: {dup_in_df}")
 
-# weather_records
-with open(os.path.join(RELEASE, "weather_records.csv"), "w", newline="", encoding="utf-8") as f:
-    w = csv.writer(f)
-    cols = ["location","date","temperature_max","temperature_min",
-            "humidity","wind_speed","precipitation","weather_condition"]
-    w.writerow(cols)
-    for row in conn.execute(f"SELECT {','.join(cols)} FROM weather_records"):
-        w.writerow(row)
-n = conn.execute("SELECT count(*) FROM weather_records").fetchone()[0]
-print(f"weather_records.csv: {n} + header")
+df_clean = df[~df["id"].isin(dup_ids)]
+print(f"After: {len(df_clean)}")
 
+# Write
+cols = ["title","date","summary","root_cause","consequence","accident_type",
+        "related_chemicals","related_equipment","source_url","location"]
+with open("data/release/accidents.csv", "w", newline="", encoding="utf-8") as f:
+    w = csv.writer(f); w.writerow(cols)
+    for _, r in df_clean.iterrows():
+        w.writerow([str(r.get(c, "") or "") for c in cols])
+
+# Weather
+wdf = pd.read_sql("SELECT * FROM weather_records", conn)
+wdf.to_csv("data/release/weather_records.csv", index=False)
+
+# Chemicals
+cdf = pd.read_sql("SELECT chemical_name,cas_number,iupac_name,molecular_weight,flash_point,lower_explosion_limit,toxicity_class FROM chemical_properties", conn)
+cdf.to_csv("data/release/chemical_properties.csv", index=False)
+
+# Update DATASET_CARD
+with open("data/release/DATASET_CARD.md", "r", encoding="utf-8") as f:
+    card = f.read()
+card = card.replace("1,579 起事故", f"{len(df_clean)} 起事故")
+card = card.replace("1,579 条", f"{len(df_clean)} 条")
+with open("data/release/DATASET_CARD.md", "w", encoding="utf-8") as f:
+    f.write(card)
+
+print(f"Release CSVs exported: accidents={len(df_clean)}, weather={len(wdf)}, chem={len(cdf)}")
 conn.close()
-print("Done — all release CSVs exported.")

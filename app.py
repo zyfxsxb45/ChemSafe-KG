@@ -359,7 +359,15 @@ elif page == "📊 多维数据分析":
 
     try:
         from config.database import engine
+        import json
         df_accidents = pd.read_sql("SELECT * FROM accidents", engine)
+        # 加载去重映射，过滤重复事故
+        try:
+            with open("data/processed/dedup_mapping.json") as f:
+                dedup_ids = set(json.load(f).keys())
+            df_accidents = df_accidents[~df_accidents["id"].astype(int).isin(dedup_ids)]
+        except Exception:
+            pass
         sql_count = len(df_accidents)
     except Exception:
         df_accidents = pd.DataFrame()
@@ -507,7 +515,7 @@ elif page == "📊 多维数据分析":
 
         with tab5:
             st.markdown("### 💡 数据洞察问答")
-            st.markdown("基于 1,579 起事故的多维交叉分析，用数据回答关键安全问题。")
+            st.markdown(f"基于 {sql_count} 起事故的多维交叉分析，用数据回答关键安全问题。")
 
             # Q1
             st.markdown("#### Q1: 最易燃易爆的化学品事故频率是否更高？")
