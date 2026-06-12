@@ -89,9 +89,11 @@ python scripts/rebuild_all.py    # 全量重建：爬虫 → 抽取 → 充实 �
 python scripts/run_comparative_experiment_v2.py
 ```
 
-**下载预构建数据集**（无需 LLM API key，直接使用 CSV）：
+**下载预构建数据集**（无需任何外部依赖，直接使用 CSV）：
 
-→ [GitHub Releases v0.7](https://github.com/zyfxsxb45/ChemSafe-KG/releases/tag/v0.7)
+→ [GitHub Releases v0.7.1](https://github.com/zyfxsxb45/ChemSafe-KG/releases/tag/v0.7.1)
+
+> 注意：完整运行需要 DeepSeek API key + Neo4j 5.x + 约 1 小时构建时间。仅查看数据分析和统计洞察只需 SQLite（已在仓库中），无需 Neo4j。
 
 ---
 
