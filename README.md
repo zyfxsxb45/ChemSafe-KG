@@ -128,8 +128,7 @@ ChemSafe-KG/
 │   └── release/                        # 公开数据集 CSV
 └── docs/
     ├── framework-guide.md              # 五层架构详解
-    ├── kg_exploration.md               # 图谱探索报告
-    └── technical_report.md             # 详细技术报告
+    └── kg_exploration.md               # 图谱探索报告
 ```
 
 ---

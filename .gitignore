@@ -62,6 +62,4 @@ data/release/*.csv
 # ── PPT/图表生成脚本 (本地工具) ──
 scripts/generate_charts.py
 scripts/generate_pptx.py
-
-# ── 技术报告 (最终提交前不入库) ──
-docs/technical_report.md
+scripts/generate_report.py
