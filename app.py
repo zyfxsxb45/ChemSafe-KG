@@ -1,5 +1,5 @@
 """
-ChemSafe-KG: Streamlit Web 应用 v0.7
+ChemSafe-KG: Streamlit Web 应用 v0.7.1
 
 基于大模型驱动的化工安全事故知识图谱构建与因果推理问答系统。
 
@@ -207,7 +207,7 @@ page = st.sidebar.radio("导航", [
 ])
 
 st.sidebar.markdown("---")
-st.sidebar.caption("v0.7.0 · 数据库技术及应用")
+st.sidebar.caption("v0.7.1 · 数据库技术及应用")
 
 
 # ═══════════════════════════════════════════════════════════════

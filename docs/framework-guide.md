@@ -1,7 +1,7 @@
 # ChemSafe-KG 项目框架说明文档
 
 > **项目**：ChemSafe-KG：基于大模型驱动的化工安全事故知识图谱构建与因果推理问答系统  
-> **框架版本**：v0.7.0（全量重建 + 微信数据集成 + Accident 聚合节点 + Prompt 事件原子化 + 日期修复）  
+> **框架版本**：v0.7.1（全量重建 + 微信数据集成 + Accident 聚合节点 + Prompt 事件原子化 + 去重口径修正）
 > **编写时间**：2026-06-04（最后修订：2026-06-08）
 
 ---
@@ -554,7 +554,7 @@ python -c "from py2neo import Graph; g=Graph('bolt://localhost:7687',auth=('neo4
 - ✅ **PubChem API**：`chemical_api.py` 29 种危化品物性（100% 字段完整）
 - ✅ **LLM API**：DeepSeek `deepseek-v4-flash` 已验证
 - ✅ **Neo4j 5.26.25**：6,976 节点 + 23,111 关系 + 1,579 Accident 聚合节点
-- ✅ **SQLite 数据库**：1,579 条事故记录 + 29 种化学品物性
+- ✅ **SQLite 数据库**：1,174 条去重后事故记录 + 72 种化学品物性
 - ✅ **因果路径查询**：`find_causal_paths()` 双向 Cypher 扩展
 - ✅ **上下文格式化**：`format_context()` 含实体类型标签
 - ✅ **对照实验**：三组 baseline（关键词RAG / GraphRAG / 纯LLM）× 20 题，9 倍幻觉减少

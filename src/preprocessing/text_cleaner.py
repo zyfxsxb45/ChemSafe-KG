@@ -6,8 +6,10 @@
 """
 import re
 import logging
-from typing import List
-import pandas as pd
+from typing import TYPE_CHECKING, List
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +19,7 @@ class TextCleaner:
 
     _RE_HEADER_FOOTER_1 = re.compile(r'第\s*\d+\s*页\s*共\s*\d+\s*页')
     _RE_HEADER_FOOTER_2 = re.compile(r'内部资料.*?注意保存')
-    _RE_PHONE = re.compile(r'1[3-9]\d{9}')
+    _RE_PHONE = re.compile(r'(?<!\d)1[3-9]\d{9}(?!\d)')
     _RE_ID_CARD = re.compile(r'\d{17}[\dXx]')
     _RE_CRLF = re.compile(r'\r\n')
     _RE_SPACES = re.compile(r'[ \t]+')
@@ -53,8 +55,8 @@ class TextCleaner:
 
     def _redact_pii(self, text: str) -> str:
         """简单的敏感信息脱敏 (如身份证号、手机号)"""
-        text = self._RE_PHONE.sub('[手机号]', text)
         text = self._RE_ID_CARD.sub('[身份证号]', text)
+        text = self._RE_PHONE.sub('[手机号]', text)
         return text
 
     def _normalize_whitespace(self, text: str) -> str:
@@ -95,7 +97,43 @@ class TextCleaner:
 
         return chunks
 
-    def build_report_index(self, metadata: pd.DataFrame) -> pd.DataFrame:
-        """构建报告索引表，记录每份报告的元信息和处理状态"""
-        # TODO: 实现索引表构建
-        return metadata
+    def build_report_index(self, metadata: "pd.DataFrame") -> "pd.DataFrame":
+        """
+        构建报告索引表，记录每份报告的元信息和处理状态。
+
+        该方法不在模块导入阶段强制加载 pandas，方便在轻量测试或
+        未安装完整数据分析依赖的环境中复用文本清洗能力。
+        """
+        index = metadata.copy()
+
+        if "report_id" not in index.columns:
+            if "source_url" in index.columns:
+                index["report_id"] = index["source_url"].fillna("").astype(str)
+            elif "file_path" in index.columns:
+                index["report_id"] = index["file_path"].fillna("").astype(str)
+            else:
+                index["report_id"] = [f"report_{i + 1:05d}" for i in range(len(index))]
+
+        defaults = {
+            "source": "unknown",
+            "title": "",
+            "file_path": "",
+            "processed_status": "pending",
+            "text_chars": 0,
+            "chunk_count": 0,
+        }
+        for column, default in defaults.items():
+            if column not in index.columns:
+                index[column] = default
+
+        return index[
+            [
+                "report_id",
+                "source",
+                "title",
+                "file_path",
+                "processed_status",
+                "text_chars",
+                "chunk_count",
+            ]
+        ]
