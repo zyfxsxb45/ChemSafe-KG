@@ -10,6 +10,7 @@ class QueryAnalyzerTest(unittest.TestCase):
 
         self.assertEqual(result["intent"], "mitigation")
         self.assertEqual(result["original_question"], "硫化氢中毒事故有哪些应急措施？")
+        self.assertTrue(result["entities"])
 
 
 class FallbackHandlerTest(unittest.TestCase):

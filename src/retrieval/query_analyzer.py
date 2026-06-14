@@ -71,5 +71,6 @@ class QueryAnalyzer:
             # 过滤掉常见的疑问词和动词停用词
             return [w for w in words if w not in self.STOP_WORDS]
         except ImportError:
-            logger.warning("未安装 jieba，实体提取降级为空")
-            return []
+            logger.warning("未安装 jieba，实体提取降级为正则关键词切分")
+            words = re.findall(r"[\u4e00-\u9fffA-Za-z0-9]{2,}", question)
+            return [w for w in words if w not in self.STOP_WORDS]

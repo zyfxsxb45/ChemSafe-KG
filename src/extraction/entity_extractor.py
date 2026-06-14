@@ -47,6 +47,10 @@ class EntityExtractor:
                 system_prompt=self.templates.get_system_prompt_with_rules(),
                 user_prompt=prompt,
             )
+            if result:
+                from src.extraction.result_validator import ResultValidator
+                result = ResultValidator().normalize_result(result)
+
             # 防御性过滤：删除 LLM 产生的非法实体类型
             if result and "event_chain" in result:
                 from config.settings import extraction as ext_config
