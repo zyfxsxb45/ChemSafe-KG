@@ -150,11 +150,11 @@ class LLMClient:
             except json.JSONDecodeError:
                 pass
 
-        # 尝试从文本中提取 JSON 对象
-        match = re.search(r'\{[^{}]*"event_chain"[^{}]*\}', text, re.DOTALL)
-        if match:
+        # 尝试从带有说明文字的响应中提取完整 JSON 对象
+        extracted = self._extract_json_object(text)
+        if extracted:
             try:
-                return json.loads(match.group(0))
+                return json.loads(extracted)
             except json.JSONDecodeError:
                 pass
 
@@ -179,3 +179,44 @@ class LLMClient:
         fixed = re.sub(r'/\*.*?\*/', '', fixed, flags=re.DOTALL)
 
         return fixed if fixed != text else None
+
+    def _extract_json_object(self, text: str) -> Optional[str]:
+        """
+        从混杂文本中提取第一个括号平衡、且包含 event_chain 的 JSON 对象。
+
+        LLM 偶尔会在 JSON 前后输出解释文字。简单正则无法处理 event_chain
+        数组内嵌套对象，因此这里按字符扫描并尊重字符串转义。
+        """
+        if not text:
+            return None
+
+        for start in [idx for idx, char in enumerate(text) if char == "{"]:
+            depth = 0
+            in_string = False
+            escaped = False
+
+            for idx in range(start, len(text)):
+                char = text[idx]
+
+                if in_string:
+                    if escaped:
+                        escaped = False
+                    elif char == "\\":
+                        escaped = True
+                    elif char == '"':
+                        in_string = False
+                    continue
+
+                if char == '"':
+                    in_string = True
+                elif char == "{":
+                    depth += 1
+                elif char == "}":
+                    depth -= 1
+                    if depth == 0:
+                        candidate = text[start:idx + 1]
+                        if '"event_chain"' in candidate:
+                            return candidate
+                        break
+
+        return None
