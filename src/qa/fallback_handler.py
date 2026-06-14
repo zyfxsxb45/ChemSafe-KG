@@ -4,13 +4,21 @@
 当主流程 (LLM抽取/因果检索/LLM生成) 失败时的备选方案。
 """
 import logging
-from typing import Dict, Optional
+import re
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
 
 class FallbackHandler:
     """降级处理器"""
+
+    STOP_WORDS = {"什么", "为什么", "如何", "怎么", "哪些", "有关", "事故", "导致"}
+    DOMAIN_TERMS = [
+        "硫化氢", "一氧化碳", "氯气", "氨", "苯", "甲醇", "乙炔", "氢气",
+        "泄漏", "爆炸", "火灾", "中毒", "窒息", "腐蚀", "超温", "超压",
+        "阀门", "管道", "储罐", "反应釜", "泵", "应急", "喷淋", "疏散",
+    ]
 
     def text_search_fallback(
         self, question: str, text_index: Dict
@@ -23,15 +31,39 @@ class FallbackHandler:
           2. 关键词匹配检索
           3. 返回匹配片段
         """
-        # 简单的关键词匹配
-        results = []
-        for report_id, text in text_index.items():
-            if any(kw in text for kw in question.split()):
-                results.append(f"[{report_id}]: {text[:200]}...")
+        keywords = self._extract_keywords(question)
+        if not keywords:
+            return "未找到相关信息。"
 
-        if results:
-            return "全文检索结果（降级模式）:\n" + "\n\n".join(results[:5])
+        scored_results = []
+        for report_id, text in text_index.items():
+            text = str(text)
+            score = sum(1 for kw in keywords if kw in text)
+            if score > 0:
+                scored_results.append((score, str(report_id), text[:200]))
+
+        if scored_results:
+            scored_results.sort(key=lambda item: (-item[0], item[1]))
+            results = [
+                f"[{report_id}] 命中{score}个关键词: {snippet}..."
+                for score, report_id, snippet in scored_results[:5]
+            ]
+            return "全文检索结果（降级模式）:\n" + "\n\n".join(results)
         return "未找到相关信息。"
+
+    def _extract_keywords(self, question: str) -> list[str]:
+        """从中文/英文问题中提取降级检索关键词。"""
+        question = question or ""
+        tokens = [term for term in self.DOMAIN_TERMS if term in question]
+        tokens.extend(re.findall(r"[\u4e00-\u9fffA-Za-z0-9]{2,}", question))
+        keywords = []
+        seen = set()
+        for token in tokens:
+            if token in self.STOP_WORDS or token in seen:
+                continue
+            seen.add(token)
+            keywords.append(token)
+        return keywords
 
     def template_response(self, intent: str) -> str:
         """

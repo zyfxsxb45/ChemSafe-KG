@@ -107,8 +107,10 @@ class KGFrontendVisualizer:
             if isinstance(path, dict):
                 node_names = path.get("node_names", [])
                 rel_types = path.get("rel_types", [])
-                for name in node_names:
-                    add_node(name, label=name)
+                node_types = path.get("node_types", [])
+                for idx, name in enumerate(node_names):
+                    group = node_types[idx] if idx < len(node_types) else ""
+                    add_node(name, label=name, group=group)
                 for idx, rel_type in enumerate(rel_types):
                     if idx + 1 >= len(node_names):
                         continue

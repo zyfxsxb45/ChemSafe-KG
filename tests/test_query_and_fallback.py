@@ -30,6 +30,17 @@ class FallbackHandlerTest(unittest.TestCase):
 
         self.assertEqual(result, "未找到相关信息。")
 
+    def test_text_search_fallback_handles_unspaced_chinese_question(self):
+        text_index = {
+            "r1": "苯泄漏后挥发形成可燃蒸气，遇点火源发生火灾。",
+            "r2": "设备定期检修记录。",
+        }
+
+        result = FallbackHandler().text_search_fallback("苯泄漏为什么会火灾", text_index)
+
+        self.assertIn("r1", result)
+        self.assertIn("命中", result)
+
 
 if __name__ == "__main__":
     unittest.main()

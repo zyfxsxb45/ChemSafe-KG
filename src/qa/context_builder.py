@@ -4,11 +4,13 @@ RAG 上下文构建模块
 将检索到的因果路径与用户问题组合，构建 LLM 的输入上下文。
 支持来源引用标注和上下文窗口管理。
 """
-from typing import List, Dict
+import re
 
 
 class ContextBuilder:
     """RAG 上下文构建器"""
+
+    DEFAULT_MAX_CONTEXT_CHARS = 12000
 
     # ─── Graph RAG 约束生成 Prompt（含来源引用要求）──────────────────────
     GRAPH_RAG_SYSTEM_PROMPT = """你是一位化工安全专家。请基于以下从知识图谱中检索到的因果路径，回答用户的问题。
@@ -29,6 +31,7 @@ class ContextBuilder:
         self,
         question: str,
         causal_context: str,
+        max_context_chars: int | None = None,
     ) -> tuple:
         """
         构建完整的 LLM 输入。
@@ -40,6 +43,11 @@ class ContextBuilder:
         Returns:
             (system_prompt, user_prompt) 二元组
         """
+        causal_context = self._truncate_context(
+            causal_context,
+            max_chars=max_context_chars or self.DEFAULT_MAX_CONTEXT_CHARS,
+        )
+
         user_prompt = f"""用户问题：{question}
 
 知识图谱检索到的因果证据（共 {self._count_paths(causal_context)} 条路径）：
@@ -52,6 +60,28 @@ class ContextBuilder:
     def _count_paths(self, context: str) -> int:
         """统计上下文中的路径数量"""
         return context.count("【路径")
+
+    def _truncate_context(self, context: str, max_chars: int) -> str:
+        """按路径边界截断超长上下文，避免提示词超过模型窗口。"""
+        context = context or ""
+        if len(context) <= max_chars:
+            return context
+
+        parts = re.split(r"(?=【路径\s*\d+】)", context)
+        kept = []
+        current_len = 0
+        for part in parts:
+            if not part:
+                continue
+            if current_len + len(part) > max_chars:
+                break
+            kept.append(part)
+            current_len += len(part)
+
+        truncated = "".join(kept).strip()
+        if not truncated:
+            truncated = context[:max_chars].rstrip()
+        return f"{truncated}\n\n[上下文已截断，仅保留前 {max_chars} 字符内的因果证据。]"
 
     def build_with_chemical_data(
         self,
