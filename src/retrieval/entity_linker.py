@@ -5,6 +5,7 @@
 """
 import logging
 from typing import List, Dict, Callable, Optional
+from src.retrieval.entity_normalizer import EntityNormalizer
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ class EntityLinker:
         self.entity_index: Dict[str, str] = {}
         self._all_entities: List[Dict] = []
         self._loaded = False
+        self.normalizer = EntityNormalizer()
 
     def _load_entities(self, neo4j_client):
         if self._loaded or neo4j_client.graph is None:
@@ -29,7 +31,14 @@ class EntityLinker:
                 "WHERE label IN ['Equipment', 'Material', 'Abnormal_Condition', 'Consequence', 'Mitigation', 'Accident'] "
                 "RETURN n.name AS name, label AS type"
             ).data()
-            self._all_entities = [{"name": str(row["name"]), "type": str(row["type"])} for row in data]
+            self._all_entities = [
+                {
+                    "name": str(row["name"]),
+                    "type": str(row["type"]),
+                    "normalized": self.normalizer.normalize(str(row["name"])),
+                }
+                for row in data
+            ]
             self._loaded = True
             logger.info(f"已加载 {len(self._all_entities)} 个实体到内存用于快速链接")
         except Exception as e:
@@ -81,6 +90,7 @@ class EntityLinker:
         cleaned = (name or "").strip()
         if not cleaned:
             return None
+        normalized_query = self.normalizer.normalize(cleaned)
 
         best_match = None
         best_score = 0
@@ -88,11 +98,14 @@ class EntityLinker:
 
         for ent in self._all_entities:
             ent_name = ent["name"]
+            ent_normalized = ent.get("normalized") or self.normalizer.normalize(ent_name)
             if ent_name == cleaned:
+                score = 4
+            elif ent_normalized and ent_normalized == normalized_query:
                 score = 3
             elif cleaned in ent_name:
                 score = 2
-            elif ent_name in cleaned:
+            elif ent_name in cleaned or (ent_normalized and ent_normalized in normalized_query):
                 score = 1
             else:
                 continue
@@ -109,12 +122,14 @@ class EntityLinker:
             return None
 
         match_type = {
-            3: "exact",
+            4: "exact",
+            3: "normalized",
             2: "contains",
             1: "reverse_contains",
         }.get(best_score, "none")
         confidence = {
-            3: 1.0,
+            4: 1.0,
+            3: 0.9,
             2: 0.75,
             1: 0.6,
         }.get(best_score, 0.0)
