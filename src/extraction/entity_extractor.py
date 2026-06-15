@@ -9,6 +9,7 @@ from typing import List, Dict, Optional
 from config.settings import extraction as extraction_config
 from src.extraction.llm_client import LLMClient
 from src.extraction.prompt_templates import PromptTemplates
+from src.retrieval.entity_normalizer import EntityNormalizer
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ class EntityExtractor:
     def __init__(self):
         self.llm = LLMClient()
         self.templates = PromptTemplates()
+        self.entity_normalizer = EntityNormalizer()
 
     def extract_from_text(self, report_text: str) -> Optional[Dict]:
         """
@@ -106,6 +108,7 @@ class EntityExtractor:
         会过滤字段缺失、未知关系类型和自环，并保持原始顺序去重。
         """
         valid_relations = set(extraction_config.RELATION_TYPES)
+        entity_normalizer = getattr(self, "entity_normalizer", EntityNormalizer())
         triples = []
         seen = set()
         chain = extraction_result.get("event_chain", [])
@@ -120,10 +123,13 @@ class EntityExtractor:
                 return ""
             return str(value).strip()
 
+        def normalize_entity(value) -> str:
+            return entity_normalizer.normalize(normalize_text(value))
+
         def add_triple(subject, relation, target):
-            subject = normalize_text(subject)
+            subject = normalize_entity(subject)
             relation = normalize_text(relation)
-            target = normalize_text(target)
+            target = normalize_entity(target)
 
             if not subject or not relation or not target:
                 return
@@ -145,7 +151,7 @@ class EntityExtractor:
                 continue
 
             if "entity" in item:
-                current_entity = normalize_text(item.get("entity"))
+                current_entity = normalize_entity(item.get("entity"))
 
             if "relation" not in item:
                 continue

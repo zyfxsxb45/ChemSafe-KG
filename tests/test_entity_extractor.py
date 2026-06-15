@@ -54,6 +54,20 @@ class EntityExtractorTriplesTest(unittest.TestCase):
 
         self.assertEqual(triples, [("泄漏", "leads_to", "火灾")])
 
+    def test_convert_to_triples_normalizes_entities_before_dedup(self):
+        result = {
+            "event_chain": [
+                {"entity": "阀门故障", "type": "Equipment"},
+                {"relation": "leads_to", "target": "气体泄露"},
+                {"source": "阀门失效", "relation": "leads_to", "target": "气体泄漏"},
+                {"source": "压力过高", "relation": "leads_to", "target": "压力超标"},
+            ]
+        }
+
+        triples = self.extractor.convert_to_triples(result)
+
+        self.assertEqual(triples, [("阀门失效", "leads_to", "气体泄漏")])
+
 
 if __name__ == "__main__":
     unittest.main()
