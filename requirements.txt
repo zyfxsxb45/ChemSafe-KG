@@ -43,8 +43,6 @@ streamlit>=1.28.0
 streamlit-agraph>=0.0.45  # 知识图谱可视化组件 (vis.js封装)
 plotly>=5.18.0
 matplotlib>=3.7.0
-python-docx>=1.0.0          # 技术报告生成
-python-pptx>=0.6.0          # PPT生成
 
 # ── OCR (扫描PDF处理, 可选) ──
 # pip install paddlepaddle paddleocr  # PaddleOCR (中文OCR推荐)
