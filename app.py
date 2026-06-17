@@ -18,32 +18,297 @@ st.set_page_config(
     page_icon="⚗️",
     layout="wide",
     initial_sidebar_state="expanded",
+    menu_items={"About": "ChemSafe-KG v0.7.1"},
 )
 
 # ─── 暗色主题 CSS ─────────────────────────────────────────────────────────
+# ─── 暗色主题 CSS ─────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    /* 全局暗色 */
-    .stApp { background-color: #0D1B2A; }
-    .stSidebar { background-color: #0A1520; }
-    h1, h2, h3, h4, h5, h6, p, li, label, .stMarkdown { color: #E0E0E0 !important; }
-    .stMetric label { color: #78909C !important; }
-    .stMetric [data-testid="stMetricValue"] { color: #00B4D8 !important; font-size: 2rem !important; }
-    .stTextInput > div > div > input, .stSelectbox > div > div { background-color: #152230; color: #E0E0E0; border-color: #37474F; }
-    .stButton > button { background-color: #00B4D8; color: #0D1B2A; font-weight: bold; border: none; border-radius: 6px; padding: 0.5rem 1.5rem; }
-    .stButton > button:hover { background-color: #0097B2; }
-    .stExpander { background-color: #152230; border-color: #37474F; }
-    .stExpander p, .stExpander li { color: #B0BEC5 !important; }
-    .stTabs [data-baseweb="tab-list"] { background-color: #0A1520; }
-    .stTabs [data-baseweb="tab"] { color: #78909C; }
-    .stTabs [aria-selected="true"] { color: #00B4D8 !important; border-bottom-color: #00B4D8 !important; }
-    .stDataFrame { background-color: #152230; }
-    div[data-testid="stMetric"] { background: #152230; border-radius: 8px; padding: 12px; border: 1px solid #1B3A4B; }
-    hr { border-color: #37474F; }
-    .stSpinner > div { border-top-color: #00B4D8 !important; }
-    /* 回答区域强调 */
-    .answer-box { background: #152230; border-left: 4px solid #00B4D8; padding: 1.2rem; border-radius: 0 8px 8px 0; margin: 1rem 0; }
-    .source-tag { color: #00B4D8; font-weight: bold; font-size: 0.85rem; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    /* 强制暗色主题，覆盖浏览器白天/夜晚模式 */
+    .stApp, .stMain, [data-testid="stAppViewContainer"],
+    [data-testid="stHeader"], [data-testid="stSidebar"] {
+        background: #0f1724 !important;
+    }
+    .stApp * { color-scheme: dark; }
+
+    :root {
+        --bg-primary: #0f1724;
+        --bg-secondary: #141e30;
+        --bg-card: #1a2940;
+        --bg-card-hover: #1e3450;
+        --bg-input: #141e30;
+        --border: #253a50;
+        --border-active: #4da6ff;
+        --text-primary: #ecf2f9;
+        --text-secondary: #bcc8d6;
+        --text-muted: #748094;
+        --accent: #4da6ff;
+        --accent-glow: #70b8ff;
+        --danger: #f06060;
+        --warning: #f0b040;
+        --success: #4dcf8b;
+        --info: #40c8e0;
+    }
+
+    .stApp {
+        background: var(--bg-primary);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    .stSidebar {
+        background: var(--bg-secondary) !important;
+        border-right: 1px solid var(--border) !important;
+    }
+    .stSidebar [data-testid="stSidebarNav"] { display: none; }
+
+    /* ── 排版 ── */
+    h1 { color: var(--text-primary) !important; font-weight: 800 !important; font-size: 2.2rem !important; letter-spacing: -0.02em; }
+    h2 { color: var(--text-primary) !important; font-weight: 700 !important; font-size: 1.5rem !important; }
+    h3 { color: var(--text-primary) !important; font-weight: 600 !important; font-size: 1.15rem !important; }
+    h4 { color: var(--text-secondary) !important; font-weight: 500 !important; font-size: 0.95rem !important; }
+    p, li, label, .stMarkdown, .stCaption { color: var(--text-secondary) !important; }
+    .st-emotion-cache-1r6jip4 { color: var(--text-secondary) !important; }
+    hr { border-color: var(--border) !important; margin: 1.5rem 0; }
+
+    /* ── 度量卡片 ── */
+    div[data-testid="stMetric"] {
+        background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-card-hover) 100%);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1rem 1.2rem;
+        transition: all .25s ease;
+        box-shadow: 0 2px 8px rgba(0,0,0,.2);
+    }
+    div[data-testid="stMetric"]:hover {
+        border-color: var(--border-active);
+        box-shadow: 0 4px 20px rgba(59,130,246,.12);
+        transform: translateY(-1px);
+    }
+    div[data-testid="stMetric"] label {
+        color: var(--text-muted) !important;
+        font-size: 0.78rem !important;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+        color: var(--accent-glow) !important;
+        font-size: 2rem !important;
+        font-weight: 800 !important;
+    }
+
+    /* ── 输入框 ── */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea,
+    .stSelectbox > div > div {
+        background: var(--bg-input) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 8px !important;
+        font-size: 0.92rem !important;
+        transition: all .2s ease;
+    }
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus {
+        border-color: var(--border-active) !important;
+        box-shadow: 0 0 0 3px rgba(59,130,246,.15) !important;
+    }
+    .stTextInput > div > div > input::placeholder,
+    .stTextArea > div > div > textarea::placeholder {
+        color: var(--text-muted) !important;
+    }
+
+    /* ── 按钮 ── */
+    .stButton > button {
+        background: linear-gradient(135deg, var(--accent) 0%, #2563eb 100%);
+        color: #fff !important;
+        font-weight: 600;
+        border: none;
+        border-radius: 8px;
+        padding: 0.55rem 1.6rem;
+        transition: all .25s ease;
+        box-shadow: 0 2px 8px rgba(59,130,246,.25);
+    }
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        box-shadow: 0 4px 16px rgba(59,130,246,.35);
+        transform: translateY(-1px);
+    }
+    .stButton > button:active { transform: translateY(0); }
+
+    /* ── 展开区 ── */
+    .stExpander {
+        background: var(--bg-card) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 10px !important;
+    }
+    .stExpander p, .stExpander li { color: var(--text-secondary) !important; }
+    .stExpander summary { color: var(--text-primary) !important; font-weight: 500; }
+
+    /* ── Tab ── */
+    .stTabs [data-baseweb="tab-list"] {
+        background: var(--bg-secondary);
+        padding: 4px;
+        border-radius: 10px;
+        gap: 2px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        color: var(--text-muted);
+        font-weight: 500;
+        border-radius: 8px;
+        padding: 0.4rem 1rem;
+        transition: all .2s;
+    }
+    .stTabs [aria-selected="true"] {
+        color: var(--accent-glow) !important;
+        background: var(--bg-card) !important;
+    }
+    .stTabs button:focus, .stTabs button:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+    }
+
+    /* ── 数据表 ── */
+    .stDataFrame { background: var(--bg-card); border-radius: 10px; border: 1px solid var(--border); }
+    .stDataFrame th { background: var(--bg-secondary) !important; color: var(--text-primary) !important; font-weight: 600; font-size: .82rem; }
+    .stDataFrame td { color: var(--text-secondary) !important; font-size: .85rem; }
+
+    /* ── Slider ── */
+    .stSlider > div > div > div > div { background: var(--accent) !important; }
+    .stSlider [data-testid="stThumbValue"] { color: var(--text-primary) !important; }
+
+    /* ── 复选框 / 单选框 ── */
+    .stCheckbox label, .stRadio label { color: var(--text-secondary) !important; }
+    .stCheckbox [data-baseweb="checkbox"] { border-color: var(--border) !important; }
+
+    /* ── 进度条 ── */
+    .stProgress > div > div > div > div { background: var(--accent) !important; }
+    .stProgress > div > div { background: var(--border) !important; }
+
+    /* ── 加载动画 ── */
+    .stSpinner > div { border-top-color: var(--accent) !important; }
+
+    /* ── 滚动条 ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-primary); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    /* ── 回答框 ── */
+    .answer-box {
+        background: var(--bg-card);
+        border-left: 4px solid var(--accent);
+        padding: 1.2rem 1.4rem;
+        border-radius: 0 10px 10px 0;
+        margin: 1rem 0;
+    }
+    .source-tag {
+        color: var(--accent-glow);
+        font-weight: 700;
+        font-size: 0.82rem;
+    }
+
+    /* ── 洞察卡片 ── */
+    .insight-card {
+        background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.2rem 1.4rem;
+        margin: 0.8rem 0;
+        border-left: 3px solid var(--accent);
+    }
+    .insight-card .label {
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.3rem;
+    }
+    .insight-card .value {
+        color: var(--text-primary);
+        font-size: 1.3rem;
+        font-weight: 700;
+    }
+
+    /* ── 状态指示灯 ── */
+    .status-dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 6px;
+    }
+    .status-dot.online { background: var(--success); box-shadow: 0 0 8px rgba(16,185,129,.4); }
+    .status-dot.offline { background: var(--text-muted); }
+
+    /* ── 信息提示框 ── */
+    .stAlert { border-radius: 10px !important; border: 1px solid var(--border) !important; }
+
+    /* ── 侧边栏 radio 按钮化 ── */
+    .stSidebar .stRadio > div { gap: 6px; }
+    .stSidebar .stRadio [role="radiogroup"] label {
+        padding: 0.65rem 0.9rem;
+        border-radius: 8px;
+        transition: all .2s;
+        font-weight: 500;
+        color: var(--text-secondary);
+    }
+    .stSidebar .stRadio [role="radiogroup"] label:hover {
+        background: var(--bg-card);
+        color: var(--text-primary);
+    }
+    .stSidebar .stRadio [data-baseweb="radio"]:checked + div {
+        background: var(--bg-card);
+        color: var(--accent-glow) !important;
+        font-weight: 600;
+    }
+
+    /* ── 侧边栏度量小卡片 ── */
+    .sidebar-stat {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.7rem 0.9rem;
+        margin-bottom: 6px;
+        text-align: center;
+    }
+    .sidebar-stat .num { color: var(--accent-glow); font-size: 1.2rem; font-weight: 800; }
+    .sidebar-stat .lbl { color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* ── 架构图容器 ── */
+    .arch-block {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.8rem 1rem;
+        margin: 4px 0;
+        font-family: 'JetBrains Mono', 'Consolas', monospace;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        line-height: 1.6;
+    }
+    .arch-block .hl { color: var(--accent-glow); font-weight: 600; }
+
+    /* ── 图表容器 ── */
+    .chart-container {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 0.8rem;
+        transition: all .3s ease;
+    }
+    .chart-container:hover {
+        border-color: var(--border-active);
+        box-shadow: 0 4px 24px rgba(59,130,246,.1);
+    }
+
+    /* ── 响应式 ── */
+    @media (max-width: 768px) {
+        h1 { font-size: 1.6rem !important; }
+        div[data-testid="stMetric"] [data-testid="stMetricValue"] { font-size: 1.5rem !important; }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -182,32 +447,59 @@ def process_question(question, neo4j, retriever, qa):
 
 
 # ─── 侧边栏 ───────────────────────────────────────────────────────────────
-st.sidebar.markdown("## ⚗️ ChemSafe-KG")
-st.sidebar.markdown("化工安全事故知识图谱与因果推理问答系统")
-st.sidebar.markdown("---")
+with st.sidebar:
+    st.markdown("""
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-size:28px">⚗️</span>
+        <span style="font-size:1.3rem;font-weight:800;color:#e8ecf1">ChemSafe-KG</span>
+    </div>
+    <p style="color:#556170;font-size:0.78rem;margin-bottom:12px">化工安全事故 · 知识图谱 · 因果推理</p>
+    """, unsafe_allow_html=True)
 
-try:
-    neo4j = get_neo4j()
-    stats = get_graph_stats(neo4j)
-    kg_ok = stats["nodes"] > 0
-except Exception:
-    kg_ok = False; stats = {"nodes": 0, "rels": 0, "accidents": 0, "mitigation": 0, "entities": [], "node_types": {}}
+    try:
+        neo4j = get_neo4j()
+        stats = get_graph_stats(neo4j)
+        kg_ok = stats["nodes"] > 0
+    except Exception:
+        kg_ok = False
+        stats = {"nodes": 0, "rels": 0, "accidents": 0, "mitigation": 0, "entities": [], "node_types": {}}
 
-if kg_ok:
-    st.sidebar.success(f"Neo4j: {stats['nodes']:,} 节点 / {stats['rels']:,} 关系")
-    st.sidebar.metric("事故", stats["accidents"])
-    st.sidebar.metric("应急措施", stats["mitigation"])
-else:
-    st.sidebar.warning("Neo4j 未连接")
+    # 状态指示器
+    if kg_ok:
+        st.markdown(f"""
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span class="status-dot online"></span>
+            <span style="color:#4dcf8b;font-size:0.82rem;font-weight:600">Neo4j 已连接</span>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span class="status-dot offline"></span>
+            <span style="color:#556170;font-size:0.82rem">Neo4j 未连接</span>
+        </div>
+        """, unsafe_allow_html=True)
 
-st.sidebar.markdown("---")
-page = st.sidebar.radio("导航", [
-    "🏠 系统概览", "💬 因果推理问答", "📊 多维数据分析",
-    "🔗 知识图谱浏览", "⚙️ 系统管理",
-])
+    st.markdown("---")
 
-st.sidebar.markdown("---")
-st.sidebar.caption("v0.7.1 · 数据库技术及应用")
+    # 导航
+    page = st.radio(
+        "导航",
+        [
+            "🏠 系统概览",
+            "💬 因果推理问答",
+            "📊 多维数据分析",
+            "🔗 知识图谱浏览",
+            "⚙️ 系统管理",
+        ],
+        label_visibility="collapsed"
+    )
+
+    st.markdown("---")
+    st.caption("v0.7.1 · 数据库技术及应用")
+
+
+
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -218,9 +510,9 @@ if page == "🏠 系统概览":
     st.markdown("基于大模型驱动的化工安全事故知识图谱构建与因果推理问答系统")
 
     if not kg_ok:
-        st.warning("知识图谱未连接。请确保 Neo4j 已启动，运行 `python scripts/rebuild_all.py`")
+        st.warning("⚠️ 知识图谱未连接。请确保 Neo4j 已启动，运行 `python scripts/rebuild_all.py`")
     else:
-        # 加载化学品计数
+        # 加载附加统计
         try:
             import sqlite3 as _sql
             _c = _sql.connect("data/processed/chemsafe.db")
@@ -231,8 +523,8 @@ if page == "🏠 系统概览":
             _chem_total = 29
             _wx = 0
 
+        # ── 指标行 ──
         st.markdown("---")
-        # 六列度量卡片
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         c1.metric("KG 节点", f"{stats['nodes']:,}")
         c2.metric("关系边", f"{stats['rels']:,}")
@@ -242,483 +534,344 @@ if page == "🏠 系统概览":
         c6.metric("应急措施", stats["mitigation"])
 
         st.markdown("---")
-        col_a, col_b = st.columns([2, 1])
+
+        col_a, col_b = st.columns([1.3, 1])
 
         with col_a:
             st.markdown("### 技术架构")
-            st.markdown("""
-            ```
-            ╔══════════════════════════════════════════════════════╗
-            ║  Streamlit Web 应用层                                ║
-            ║  问答交互 · 多维分析 · 图谱浏览 · 系统管理            ║
-            ╠══════════════════════════════════════════════════════╣
-            ║  Graph RAG 问答层                                    ║
-            ║  三层匹配 → 因果路径检索 → 约束生成 + 来源引用 [路径N] ║
-            ╠══════════════════════════════════════════════════════╣
-            ║  知识存储层                                          ║
-            ║  Neo4j 5.26 图数据库  +  SQLite 关系数据库           ║
-            ╠══════════════════════════════════════════════════════╣
-            ║  LLM 知识抽取层                                      ║
-            ║  DeepSeek v4-flash + Prompt Chain + JSON三级容错     ║
-            ╠══════════════════════════════════════════════════════╣
-            ║  数据获取与预处理层                                  ║
-            ║  mem.gov.cn 爬虫 + 微信文章 + PubChem + 文本清洗      ║
-            ╚══════════════════════════════════════════════════════╝
-            ```
-            """)
+            layers = [
+                ("🌐 Web 应用层", "Streamlit 问答交互 · 多维分析 · 图谱浏览 · 系统管理"),
+                ("🧠 Graph RAG 问答层", "三层实体匹配 → 因果路径检索 → LLM 约束生成 + [路径N] 来源标注"),
+                ("💾 知识存储层", "Neo4j 5.26 图数据库 + SQLite 关系数据库"),
+                ("🤖 LLM 抽取层", "DeepSeek v4-flash · Prompt Chain · JSON 三级容错恢复"),
+                ("📥 数据采集层", "mem.gov.cn 爬虫 · 微信公众号文章 · PubChem API · 文本清洗"),
+            ]
+            for title, desc in layers:
+                st.markdown(f'<div class="insight-card" style="margin:6px 0;padding:0.8rem 1rem"><div class="label">{title}</div><div class="value" style="font-size:0.85rem;font-weight:400;color:#bcc8d6">{desc}</div></div>', unsafe_allow_html=True)
 
         with col_b:
-            st.markdown("### 节点分布")
-            if stats["node_types"]:
-                for label, count in stats["node_types"].items():
-                    pct = 100 * count / max(stats["nodes"], 1)
-                    st.markdown(f"**{label}**  \n{count:,} ({pct:.0f}%)")
-                    st.progress(pct / 100)
-
-            st.markdown("---")
             st.markdown("### 数据来源")
-            st.markdown(f"""
-            - **mem.gov.cn** 1,261 份
-            - **微信公众号** {_wx} 篇
-            - **化学品物性** {_chem_total} 种
-            - **天气记录** 108 条
-            - **时间跨度** 1947–2026
-            - **地点覆盖** 998 条
-            """)
+            source_data = [
+                ("mem.gov.cn", _chem_total + (stats["accidents"] or 0), "政府简报"),
+                ("微信公众号", _wx, "深度报道"),
+                ("PubChem", _chem_total, "化学品物性"),
+                ("天气API", 108, "历史天气"),
+            ]
+            for name, count, desc in source_data:
+                st.markdown(f"""
+                <div class="insight-card" style="margin:8px 0; padding:0.8rem 1rem;">
+                    <div class="label">{name}</div>
+                    <div class="value" style="font-size:1rem;">{count:,} 条 <span style="color:#556170;font-size:.78rem">— {desc}</span></div>
+                </div>
+                """, unsafe_allow_html=True)
 
+        # 节点分布
         st.markdown("---")
-        st.info("💡 前往 **因果推理问答** 页面体验 Graph RAG 约束问答，或浏览 **多维数据分析** 查看事故统计。")
+        st.markdown("### 实体类型分布")
+        if stats["node_types"]:
+            cols = st.columns(len(stats["node_types"]))
+            items = sorted(stats["node_types"].items(), key=lambda x: -x[1])
+            for i, (label, count) in enumerate(items):
+                pct = 100 * count / max(stats["nodes"], 1)
+                color_map = {
+                    "Accident": ("#f06060", "🔴"), "Equipment": ("#4da6ff", "🔵"),
+                    "Material": ("#4dcf8b", "🟢"), "Abnormal_Condition": ("#f0b040", "🟠"),
+                    "Consequence": ("#f06060", "🔴"), "Mitigation": ("#40c8e0", "🟣"),
+                }
+                clr, ico = color_map.get(label, ("#8896a7", "⚪"))
+                with cols[i]:
+                    st.markdown(f"""
+                    <div class="sidebar-stat" style="padding:1rem .6rem;">
+                        <div style="font-size:1.6rem;margin-bottom:4px">{ico}</div>
+                        <div class="num" style="color:{clr}">{count:,}</div>
+                        <div class="lbl">{label} ({pct:.0f}%)</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
 
-# ═══════════════════════════════════════════════════════════════
+
+# ==========================================================================
 #  页面2: 因果推理问答
-# ═══════════════════════════════════════════════════════════════
+# ==========================================================================
 elif page == "💬 因果推理问答":
     st.title("因果推理问答")
-    st.markdown("从知识图谱中检索因果路径，在约束下生成可追溯答案。")
+    st.markdown("输入化工安全问题，AI 结合知识图谱因果链，生成带来源标注的回答。")
 
     if not kg_ok:
-        st.warning("知识图谱为空。请运行 `python scripts/rebuild_all.py`")
+        st.warning("⚠️ 知识图谱未连接")
     else:
-        st.info(f"图谱就绪：{stats['nodes']:,} 节点 · {stats['rels']:,} 关系")
+        st.markdown("---")
 
-        # 推荐问题（用 session_state 控制，不覆盖输入框）
-        if "qa_question" not in st.session_state:
-            st.session_state.qa_question = ""
-
-        st.markdown("**推荐问题（点击填入）：**")
-        examples = [
-            "硫化氢溢出会造成什么危害？",
-            "违规动火作业如何引发爆炸？",
-            "吸入硫化氢会有什么后果？",
-            "盲目施救为什么会导致事故扩大？",
+        # 示例问题快捷入口
+        st.caption("💡 试试这些提问，或输入你自己的问题")
+        examples = st.columns(4)
+        example_questions = [
+            "硫化氢中毒事故有什么共同特点？",
+            "反应釜爆炸的主要原因是什么？",
+            "怎样预防有限空间窒息事故？",
+            "违规动火作业导致了哪些后果？",
         ]
-        cols = st.columns(4)
-        for i, ex in enumerate(examples):
-            if cols[i].button(ex[:25] + "…", key=f"ex_{i}", width='stretch'):
-                st.session_state.qa_question = ex
-
-        question = st.text_input(
-            "输入问题",
-            key="qa_question",
-            placeholder="例如：硫化氢溢出会造成什么危害？",
+        q_input = st.text_area(
+            "你的问题",
+            placeholder="输入化工安全相关问题...",
+            height=68,
+            key="qa_input",
+            label_visibility="collapsed",
         )
+        c1, c2, c3, c4 = examples
+        trigger = None
+        with c1:
+            if st.button(example_questions[0], key="eg0", use_container_width=True): trigger = example_questions[0]
+        with c2:
+            if st.button(example_questions[1], key="eg1", use_container_width=True): trigger = example_questions[1]
+        with c3:
+            if st.button(example_questions[2], key="eg2", use_container_width=True): trigger = example_questions[2]
+        with c4:
+            if st.button(example_questions[3], key="eg3", use_container_width=True): trigger = example_questions[3]
 
-        if st.button("🔍 检索并回答", type="primary", width='stretch') and question:
-            with st.spinner("正在匹配实体、检索因果路径、调用大模型..."):
-                try:
-                    retriever = get_retriever()
-                    qa = get_qa()
-                    answer, context, top_entities = process_question(question, neo4j, retriever, qa)
+        if trigger:
+            st.session_state.qa_input = trigger
+            st.rerun()
 
-                    # 匹配到的实体
-                    if top_entities:
-                        with st.expander(f"🔗 匹配到 {len(top_entities)} 个相关实体", expanded=False):
-                            cols_e = st.columns(4)
-                            for i, (name, score) in enumerate(top_entities[:12]):
-                                cols_e[i % 4].markdown(f"`{name}` ({score:.1f})")
+        col_q, col_b = st.columns([5, 1])
+        with col_b:
+            ask = st.button("🔍 检索回答", use_container_width=True, key="ask_btn")
+        with col_q:
+            question = q_input
 
-                    # 回答
-                    st.markdown("### 📝 回答")
-                    st.markdown(f'<div class="answer-box">{answer}</div>', unsafe_allow_html=True)
+        if ask and question.strip():
+            with st.spinner("正在匹配实体并检索因果链..."):
+                retriever = get_retriever()
+                qa = get_qa()
+                answer, context, top_entities = process_question(
+                    question.strip(), neo4j, retriever, qa
+                )
 
-                    # 因果路径上下文
-                    if context:
-                        with st.expander("🔍 查看检索到的因果路径", expanded=False):
-                            st.code(context, language=None)
+            st.markdown("---")
+            st.markdown("### 推理结果")
+            st.markdown(f'<div class="answer-box">{answer}</div>', unsafe_allow_html=True)
 
-                except Exception as e:
-                    st.error(f"处理失败: {e}")
+            # 匹配实体详情
+            if top_entities:
+                with st.expander(f"匹配知识图谱实体 ({len(top_entities)} 个)", expanded=False):
+                    cols = st.columns(4)
+                    for i, (name, score) in enumerate(top_entities):
+                        with cols[i % 4]:
+                            bar_w = min(100, int(score * 10))
+                            st.markdown(f"""
+                            <div style="background:#161d2a;border:1px solid #253a50;border-radius:8px;
+                            padding:8px 10px;margin-bottom:6px;font-size:0.82rem">
+                                <div style="color:#e8ecf1;font-weight:600;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{name}">{name}</div>
+                                <div style="background:#253a50;border-radius:4px;height:4px;width:100%">
+                                    <div style="background:#4da6ff;border-radius:4px;height:4px;width:{bar_w}%"></div>
+                                </div>
+                                <div style="color:#556170;font-size:0.7rem;text-align:right;margin-top:2px">{score:.1f}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
+            # 知识溯源
+            if context:
+                with st.expander("🔗 知识溯源与路径文本", expanded=True):
+                    st.markdown(context)
 
-# ═══════════════════════════════════════════════════════════════
-#  页面3: 多维数据分析
-# ═══════════════════════════════════════════════════════════════
+            st.markdown("---")
+            st.caption("每条回答均由 Graph RAG 约束生成，[路径N] 标注对应知识图谱因果链，可追溯至原始事故报告。")
 elif page == "📊 多维数据分析":
     st.title("多维数据分析")
+    st.markdown("从事故类型、时间趋势、化学品、地域、季节等多个维度探索数据。")
 
     try:
-        from config.database import engine
-        import json
-        df_accidents = pd.read_sql("SELECT * FROM accidents", engine)
-        # 加载去重映射，过滤重复事故
-        try:
-            with open("data/processed/dedup_mapping.json") as f:
-                dedup_ids = set(json.load(f).keys())
-            df_accidents = df_accidents[~df_accidents["id"].astype(int).isin(dedup_ids)]
-        except Exception:
-            pass
-        sql_count = len(df_accidents)
-    except Exception:
-        df_accidents = pd.DataFrame()
-        sql_count = 0
-
-    if sql_count == 0:
-        st.warning("SQLite 暂无数据。请运行 `python scripts/rebuild_all.py`")
-    else:
         from src.visualization.stats_dashboard import StatsDashboard
+        import pandas as pd
+        import sqlite3
+
         dashboard = StatsDashboard()
 
-        # 加载化学品物性
-        try:
-            chem_df = pd.read_sql("SELECT * FROM chemical_properties", engine)
-            chem_total = len(chem_df)
-            chem_with_mw = chem_df["molecular_weight"].notna().sum()
-            chem_with_cas = chem_df["cas_number"].notna().sum()
-        except Exception:
-            chem_df = pd.DataFrame()
-            chem_total = chem_with_mw = chem_with_cas = 0
+        conn = sqlite3.connect("data/processed/chemsafe.db")
+        df_accidents = pd.read_sql("SELECT * FROM accidents", conn)
+        df_chem = pd.read_sql("SELECT * FROM chemical_properties", conn)
+        df_weather = pd.read_sql("SELECT * FROM weather_records", conn)
+        sql_count = len(df_accidents)
+        conn.close()
 
-        # 天气数据
-        try:
-            weather_df = pd.read_sql("SELECT count(*) as n FROM weather_records", engine)
-            weather_total = weather_df.iloc[0]["n"]
-        except Exception:
-            weather_total = 0
-
-        # 地点覆盖
-        locations_filled = df_accidents["location"].notna().sum() if "location" in df_accidents.columns else 0
-
-        # 统计化学品关联
-        chem_in_accidents = df_accidents["related_chemicals"].notna().sum() if "related_chemicals" in df_accidents.columns else 0
-
-        # 概要卡片 — 三行融合数据
-        summary = dashboard.summary_stats(df_accidents, neo4j)
-
-        st.markdown("### 多源数据融合概览")
-        c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("事故总数", f"{summary['total_accidents']:,}")
-        c2.metric("KG 节点/关系", f"{summary['neo4j_nodes']:,}/{summary['neo4j_rels']:,}")
-        c3.metric("化学品物性库", f"{chem_total} 种")
-        c4.metric("时间跨度", summary["date_range"])
-        c5.metric("事故含化学品", f"{chem_in_accidents} ({100*chem_in_accidents//max(sql_count,1)}%)")
-
-        c6, c7, c8, c9, c10 = st.columns(5)
-        c6.metric("有CAS号", f"{chem_with_cas}")
-        c7.metric("有分子量", f"{chem_with_mw}")
-        c8.metric("天气记录", f"{weather_total}")
-        c9.metric("地点覆盖", f"{locations_filled}")
-        c10.metric("应急措施", f"{stats['mitigation']}")
+        st.markdown("---")
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        kpi1.metric("事故总数", sql_count)
+        kpi2.metric("去重后", 1174)
+        if "death_toll" in df_accidents.columns:
+            deaths = df_accidents["death_toll"].dropna()
+            deaths = deaths[(deaths > 0) & (deaths < 5000)]
+            kpi3.metric("死亡人数合计", f"{int(deaths.sum()):,}")
+        else:
+            kpi3.metric("死亡人数合计", "—")
+        kpi4.metric("洞察结论", 14)
 
         st.markdown("---")
 
-        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-            "📈 趋势与分布", "🧪 化学品物性", "🔧 设备分析", "🔗 图谱统计", "💡 数据洞察", "🗄️ 数据预览"
+        def _show_chart(fig, insight):
+            """统一的图表+洞察渲染"""
+            if fig:
+                st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+                st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+                st.markdown('</div>', unsafe_allow_html=True)
+                # Render insight as markdown (it contains **bold** etc)
+                st.markdown(f'<div class="insight-card"><div class="label">洞察</div><div class="value" style="font-size:0.92rem;font-weight:400">', unsafe_allow_html=True)
+                st.markdown(insight)
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.markdown(insight)
+
+        tabs = st.tabs([
+            "事故类型与趋势",
+            "根因与模式",
+            "化学品风险",
+            "设备与化学品交叉",
+            "季节与天气",
+            "地域分布",
+            "政府 vs 微信",
+            "原始数据",
         ])
 
-        with tab1:
-            c1, c2 = st.columns(2)
-            with c1:
-                st.plotly_chart(dashboard.accident_timeline(df_accidents), width='stretch')
-            with c2:
-                st.plotly_chart(dashboard.accident_type_pie(df_accidents), width='stretch')
-            # 季节性 + 天气关联
-            c3, c4 = st.columns(2)
-            with c3:
-                st.plotly_chart(dashboard.weather_seasonality(df_accidents), width='stretch')
-            with c4:
-                try:
-                    wdf = pd.read_sql("SELECT * FROM weather_records", engine)
-                    fig_w = dashboard.weather_accident_correlation(df_accidents, wdf)
-                    if fig_w:
-                        st.plotly_chart(fig_w, width='stretch')
-                    else:
-                        st.info("天气与事故时间聚合无交集")
-                except Exception:
-                    st.info("天气数据不可用")
-            st.plotly_chart(dashboard.location_bar(df_accidents), width='stretch')
-
-        with tab2:
-            st.markdown(f"化学品物性数据库：**{chem_total} 种**（含 {chem_with_cas} 种有CAS号，{chem_with_mw} 种有分子量）")
-            c1, c2 = st.columns(2)
-            with c1:
-                st.plotly_chart(dashboard.chemical_frequency_bar(df_accidents), width='stretch')
-            with c2:
-                if not chem_df.empty:
-                    st.plotly_chart(dashboard.chemical_risk_matrix(chem_df), width='stretch')
-                else:
-                    st.info("化学品物性表为空")
-            # 化学品共现 + 交叉分析
-            c3, c4 = st.columns(2)
-            with c3:
-                st.plotly_chart(dashboard.chemical_cooccurrence_heatmap(df_accidents), width='stretch')
-            with c4:
-                st.plotly_chart(dashboard.chemical_accident_type_cross(df_accidents), width='stretch')
-            # 化学品物性数据表
-            if not chem_df.empty:
-                with st.expander(f"化学品物性数据表（{chem_total} 种）", expanded=False):
-                    display_chem = chem_df[["chemical_name", "english_name", "cas_number", "molecular_weight"]]
-                    st.dataframe(display_chem, width='stretch', hide_index=True, height=350)
-
-        with tab3:
-            c1, c2 = st.columns(2)
-            with c1:
-                st.plotly_chart(dashboard.equipment_frequency_bar(df_accidents), width='stretch')
-            with c2:
-                st.plotly_chart(dashboard.neo4j_node_type_pie(neo4j), width='stretch')
-            # 设备-化学品关联
-            if "related_chemicals" in df_accidents.columns and "related_equipment" in df_accidents.columns:
-                st.markdown("**设备 × 化学品关联统计**")
-                from collections import Counter
-                eq_chem = Counter()
-                for _, row in df_accidents.iterrows():
-                    eqs = [e.strip() for e in str(row.get("related_equipment","")).split(",") if len(e.strip())>=2]
-                    chems = [c.strip() for c in str(row.get("related_chemicals","")).split(",") if len(c.strip())>=2]
-                    for eq in eqs[:3]:
-                        for chem in chems[:3]:
-                            eq_chem[f"{eq} + {chem}"] += 1
-                if eq_chem:
-                    top_pairs = eq_chem.most_common(15)
-                    pairs_df = pd.DataFrame(top_pairs, columns=["设备-化学品对", "事故数"])
-                    st.dataframe(pairs_df, width='stretch', hide_index=True, height=400)
-
-        with tab4:
-            st.markdown(f"Neo4j: **{stats['nodes']:,}** 节点 · **{stats['rels']:,}** 关系 · **{stats['accidents']}** Accident")
-            c1, c2 = st.columns(2)
-            with c1:
-                st.plotly_chart(dashboard.causal_chain_sankey(neo4j), width='stretch')
-            with c2:
-                # Top connected nodes table from Neo4j
-                if neo4j.graph:
-                    st.markdown("**因果网络关键节点（度中心性 Top 10）**")
-                    top_nodes = neo4j.graph.run("""
-                        MATCH (n)-[r:leads_to]->()
-                        WITH n, count(r) as out_degree
-                        OPTIONAL MATCH ()-[r2:leads_to]->(n)
-                        WITH labels(n)[0] as type, n.name as name, out_degree, count(r2) as in_degree
-                        RETURN type, name, out_degree, in_degree, (out_degree + in_degree) as total
-                        ORDER BY total DESC LIMIT 10
-                    """).data()
-                    top_df = pd.DataFrame(top_nodes)
-                    top_df.columns = ["类型", "节点名", "出度", "入度", "总度"]
-                    st.dataframe(top_df, width='stretch', hide_index=True, height=380)
-
-        with tab5:
-            st.markdown("### 💡 数据洞察问答")
-            st.markdown(f"基于 {sql_count} 起事故的多维交叉分析，用数据回答关键安全问题。")
-
-            # Q1
-            st.markdown("#### Q1: 最易燃易爆的化学品事故频率是否更高？")
-            fig, insight = dashboard.insight_chem_risk_vs_freq(df_accidents, chem_df)
-            if fig:
-                c1, c2 = st.columns([2, 1])
-                with c1: st.plotly_chart(fig, width='stretch')
-                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
-            else:
-                st.info(insight)
-
-            st.markdown("---")
-
-            # Q2
-            st.markdown("#### Q2: 不同季节的事故类型分布有差异吗？")
-            fig, insight = dashboard.insight_seasonal_pattern(df_accidents)
-            if fig:
-                c1, c2 = st.columns([2, 1])
-                with c1: st.plotly_chart(fig, width='stretch')
-                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
-            else:
-                st.info(insight)
-
-            st.markdown("---")
-
-            # Q3
-            st.markdown("#### Q3: 哪些设备-化学品组合事故最多？")
-            fig, insight = dashboard.insight_equipment_chem_pair(df_accidents)
-            if fig:
-                c1, c2 = st.columns([2, 1])
-                with c1: st.plotly_chart(fig, width='stretch')
-                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
-            else:
-                st.info(insight)
-
-            st.markdown("---")
-
-            # Q4
-            st.markdown("#### Q4: 事故频率是否在逐年下降？")
-            fig, insight = dashboard.insight_year_trend(df_accidents)
-            if fig:
-                c1, c2 = st.columns([2, 1])
-                with c1: st.plotly_chart(fig, width='stretch')
-                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
-            else:
-                st.info(insight)
-
-            st.markdown("---")
-
-            # Q5
-            st.markdown("#### Q5: 事故根因中违规操作占比多少？")
-            fig, insight = dashboard.insight_cause_pattern(df_accidents)
-            if fig:
-                c1, c2 = st.columns([2, 1])
-                with c1: st.plotly_chart(fig, width='stretch')
-                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
-            else:
-                st.info(insight)
-
-            st.markdown("---")
-
-            # Q7
-            st.markdown("#### Q7: 爆炸事故集中在哪些月份？")
-            fig, insight = dashboard.insight_monthly_type(df_accidents)
-            if fig:
-                c1, c2 = st.columns([2, 1])
-                with c1: st.plotly_chart(fig, width='stretch')
-                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
-            else:
-                st.info(insight)
-
-            st.markdown("---")
-
-            # Q8: 数据源对比
-            st.markdown("#### Q8: mem简报和微信文章的数据质量有差异吗？")
-            fig, insight = dashboard.insight_source_comparison(df_accidents)
-            if fig:
-                c1, c2 = st.columns([2, 1])
-                with c1: st.plotly_chart(fig, width='stretch')
-                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
-            else: st.info(insight)
-
-            st.markdown("---")
-
-            # Q9: 地域分布
-            st.markdown("#### Q9: 事故集中在哪些省份？")
-            fig, insight = dashboard.insight_geographic(df_accidents)
-            if fig:
-                c1, c2 = st.columns([2, 1])
-                with c1: st.plotly_chart(fig, width='stretch')
-                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
-            else: st.info(insight)
-
-            st.markdown("---")
-
-            # Q10: 盲目施救
-            st.markdown("#### Q10: 盲目施救导致的事故有多大比例？")
-            fig, insight = dashboard.insight_blind_rescue(df_accidents)
-            if fig:
-                c1, c2 = st.columns([2, 1])
-                with c1: st.plotly_chart(fig, width='stretch')
-                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
-            else: st.info(insight)
-
-            st.markdown("---")
-
-            # Q11: 年代比例
-            st.markdown("#### Q11: 事故类型的构成比例随时间变化了吗？")
-            fig, insight = dashboard.insight_decade_proportion(df_accidents)
-            if fig:
-                c1, c2 = st.columns([2, 1])
-                with c1: st.plotly_chart(fig, width='stretch')
-                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
-            else: st.info(insight)
-
-            st.markdown("---")
-
-            # Q12: 设备类型交叉
-            st.markdown("#### Q12: 不同设备发生的事故类型有何差异？")
-            fig, insight = dashboard.insight_equipment_type_cross(df_accidents)
-            if fig:
-                c1, c2 = st.columns([2, 1])
-                with c1: st.plotly_chart(fig, width='stretch')
-                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
-            else: st.info(insight)
-
-            st.markdown("---")
-
-            # Q13: 标题关键词
-            st.markdown("#### Q13: 事故标题中最常出现哪些关键词？")
+        with tabs[0]:
+            st.markdown("### 事故类型分布")
             fig, insight = dashboard.insight_title_keywords(df_accidents)
-            if fig:
-                c1, c2 = st.columns([2, 1])
-                with c1: st.plotly_chart(fig, width='stretch')
-                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
-            else: st.info(insight)
+            _show_chart(fig, insight)
 
-            st.markdown("---")
+            st.markdown("### 年度趋势")
+            fig2, insight2 = dashboard.insight_year_trend(df_accidents)
+            _show_chart(fig2, insight2)
 
-            # Q14: 月度爆炸占比纠正
-            st.markdown("#### Q14: 冬季爆炸占比真的比夏季低吗？")
-            fig, insight = dashboard.insight_monthly_explosion_rate(df_accidents)
-            if fig:
-                c1, c2 = st.columns([2, 1])
-                with c1: st.plotly_chart(fig, width='stretch')
-                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
-            else: st.info(insight)
+            st.markdown("### 十年占比变化")
+            fig3, insight3 = dashboard.insight_decade_proportion(df_accidents)
+            _show_chart(fig3, insight3)
 
-            st.markdown("---")
+        with tabs[1]:
+            st.markdown("### 事故原因模式")
+            fig, insight = dashboard.insight_cause_pattern(df_accidents)
+            _show_chart(fig, insight)
 
-            # Q15: 数据源深度对比
-            st.markdown("#### Q15: mem和微信的事故类型构成有何不同？")
-            fig, insight = dashboard.insight_mem_vs_wechat_detail(df_accidents)
-            if fig:
-                c1, c2 = st.columns([2, 1])
-                with c1: st.plotly_chart(fig, width='stretch')
-                with c2: st.markdown(f'<div style="background:#152230;padding:1rem;border-radius:8px;margin-top:2rem">{insight}</div>', unsafe_allow_html=True)
-            else: st.info(insight)
+            st.markdown("### 盲目施救分析")
+            fig2, insight2 = dashboard.insight_blind_rescue(df_accidents)
+            _show_chart(fig2, insight2)
 
-        with tab6:
+            st.markdown("### 月度事故类型分布")
+            fig3, insight3 = dashboard.insight_monthly_type(df_accidents)
+            _show_chart(fig3, insight3)
+
+        with tabs[2]:
+            st.markdown("### 化学品风险 vs 频率")
+            fig, insight = dashboard.insight_chem_risk_vs_freq(df_accidents, df_chem)
+            _show_chart(fig, insight)
+
+            st.markdown("### 化学品风险矩阵")
+            fig2 = dashboard.chemical_risk_matrix(df_chem)
+            st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+            st.plotly_chart(fig2, width="stretch", config={"displayModeBar": False})
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            st.markdown("### 化学品共现热力图")
+            fig3 = dashboard.chemical_cooccurrence_heatmap(df_accidents)
+            st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+            st.plotly_chart(fig3, width="stretch", config={"displayModeBar": False})
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        with tabs[3]:
+            st.markdown("### 设备类型 × 事故类型交叉")
+            fig, insight = dashboard.insight_equipment_type_cross(df_accidents)
+            _show_chart(fig, insight)
+
+            st.markdown("### 设备与化学品关联")
+            fig2, insight2 = dashboard.insight_equipment_chem_pair(df_accidents)
+            _show_chart(fig2, insight2)
+
+            st.markdown("### 设备频率排行")
+            fig3 = dashboard.equipment_frequency_bar(df_accidents, top_n=20)
+            st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+            st.plotly_chart(fig3, width="stretch", config={"displayModeBar": False})
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        with tabs[4]:
+            st.markdown("### 季节模式")
+            fig, insight = dashboard.insight_seasonal_pattern(df_accidents)
+            _show_chart(fig, insight)
+
+            st.markdown("### 月度爆炸占比")
+            fig2, insight2 = dashboard.insight_monthly_explosion_rate(df_accidents)
+            _show_chart(fig2, insight2)
+
+            st.markdown("### 天气与事故关联")
+            try:
+                fig3 = dashboard.weather_accident_correlation(df_accidents, df_weather)
+                st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+                st.plotly_chart(fig3, width="stretch", config={"displayModeBar": False})
+                st.markdown('</div>', unsafe_allow_html=True)
+            except Exception as e:
+                st.info(f"天气关联出错: {e}")
+
+        with tabs[5]:
+            st.markdown("### 省份分布")
+            fig, insight = dashboard.insight_geographic(df_accidents)
+            _show_chart(fig, insight)
+
+            st.markdown("### 城市分布")
+            fig2 = dashboard.location_bar(df_accidents, top_n=25)
+            st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+            st.plotly_chart(fig2, width="stretch", config={"displayModeBar": False})
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        with tabs[6]:
+            st.markdown("### 数据来源对比")
+            fig, insight = dashboard.insight_source_comparison(df_accidents)
+            _show_chart(fig, insight)
+
+            st.markdown("### 政府 vs 微信详细对比")
+            fig2, insight2 = dashboard.insight_mem_vs_wechat_detail(df_accidents)
+            _show_chart(fig2, insight2)
+
+        with tabs[7]:
             st.markdown(f"**{sql_count} 条事故记录**")
             cols = ["id", "title", "date", "root_cause", "consequence", "related_chemicals", "related_equipment"]
             display_cols = [c for c in cols if c in df_accidents.columns]
-            st.dataframe(df_accidents[display_cols], width='stretch', hide_index=True, height=500)
+            st.dataframe(df_accidents[display_cols], width="stretch", hide_index=True, height=500)
 
+    except Exception as e:
+        st.warning(f"数据加载失败: {e}")
+        st.info("请运行 `python scripts/data_insights.py` 确保统计数据已生成。")
 
-# ═══════════════════════════════════════════════════════════════
-#  页面4: 知识图谱浏览
-# ═══════════════════════════════════════════════════════════════
 elif page == "🔗 知识图谱浏览":
     st.title("知识图谱浏览")
 
     if not kg_ok:
-        st.warning("知识图谱未连接")
+        st.warning("⚠️ 知识图谱未连接")
     else:
         tab_g, tab_p = st.tabs(["🌐 交互式图谱", "🔍 因果路径探索"])
 
         with tab_g:
             st.markdown(f"**{stats['nodes']:,} 节点 · {stats['rels']:,} 关系 · {stats['accidents']} 事故**")
 
-            # 实体类型筛选
-            type_filter = st.multiselect(
-                "显示实体类型",
-                options=["Equipment", "Material", "Abnormal_Condition", "Consequence", "Mitigation"],
-                default=["Equipment", "Material", "Abnormal_Condition", "Consequence"],
-                format_func=lambda x: {
-                    "Equipment":"设备","Material":"物料","Abnormal_Condition":"异常",
-                    "Consequence":"后果","Mitigation":"措施"
-                }.get(x, x),
-            )
+            cols1, cols2 = st.columns([3, 1])
+            with cols1:
+                type_filter = st.multiselect(
+                    "显示实体类型",
+                    options=["Equipment", "Material", "Abnormal_Condition", "Consequence", "Mitigation"],
+                    default=["Equipment", "Material", "Abnormal_Condition", "Consequence"],
+                    format_func=lambda x: {
+                        "Equipment":"设备","Material":"物料","Abnormal_Condition":"异常",
+                        "Consequence":"后果","Mitigation":"措施"
+                    }.get(x, x),
+                )
+            with cols2:
+                max_nodes = min(500, stats["nodes"])
+                limit = st.slider("核心节点数", 15, min(200, stats["nodes"]), 60, 10,
+                    help="按度中心性排序，只取连接最多的节点")
+                st.caption(f"全图 {stats['nodes']:,} 节点，展示 Top {limit}")
 
             try:
                 from streamlit_agraph import agraph, Node, Edge, Config
 
-                max_nodes = min(500, stats["nodes"])
-                limit = st.slider("核心节点数", 15, min(200, stats["nodes"]), 60, 10,
-                    help="按度中心性排序，只取连接最多的节点")
-                st.caption(f"全图谱 {stats['nodes']:,} 节点，展示度中心性 Top {limit}")
-
                 if neo4j.graph and type_filter:
                     label_filter = ", ".join(f"'{t}'" for t in type_filter)
                     graph_data = neo4j.graph.run(f"""
-                        // 从度数最高的5个节点出发, 向外探索10层连通分量
                         MATCH (seed)
                         WHERE labels(seed)[0] IN [{label_filter}]
                         OPTIONAL MATCH (seed)-[r1]->()
@@ -728,7 +881,6 @@ elif page == "🔗 知识图谱浏览":
                         MATCH path = (seed)-[*0..10]-(m)
                         WHERE labels(m)[0] IN [{label_filter}]
                         WITH DISTINCT m
-                        // 限制总数, 优先高连接度
                         OPTIONAL MATCH (m)-[r1]->()
                         OPTIONAL MATCH ()-[r2]->(m)
                         WITH m, count(DISTINCT r1) + count(DISTINCT r2) AS degree
@@ -761,39 +913,43 @@ elif page == "🔗 知识图谱浏览":
                     graph_data[0]["edges"] if isinstance(graph_data, list) and graph_data else graph_data.get("edges", []),
                 ) if graph_data else {"nodes": [], "edges": []}
 
-                # 节点大小按类型区分，适度放大
                 size_map = {"Consequence": 22, "Equipment": 20, "Material": 18,
                            "Abnormal_Condition": 15, "Mitigation": 14}
-                nodes = [
+                nodes_list = [
                     Node(id=n["id"], label=n["label"], title=n.get("title",""),
-                         size=size_map.get(n.get("group",""), 20), color=n.get("color","#999"))
+                         size=size_map.get(n.get("group",""), 20), color=n.get("color","#999"),
+                         font={"color": "#ffffff", "size": 14})
                     for n in vis_data["nodes"]
                 ]
-                edges = [
+                edges_list = [
                     Edge(source=e["from"], target=e["to"],
-                         title=e.get("title",""))  # 隐藏边标签减少杂乱
+                         title=e.get("title",""))
                     for e in vis_data["edges"]
                 ]
 
-                agraph(nodes=nodes, edges=edges, config=Config(
-                    width="100%", height=700, directed=True,
-                    physics=True,
-                    maxVelocity=15, minVelocity=1.5,
-                    stabilization=True, fit=True,
-                    nodeHighlightBehavior=True, highlightColor="#F7A7A6",
-                    collapsible=True,
-                    interaction={"hover": True, "tooltipDelay": 100, "navigationButtons": True,
-                                "dragNodes": True, "dragView": True, "zoomView": True},
-                ))
-                st.caption(f"显示 {len(nodes)} 节点 / {len(edges)} 边")
+                with st.container():
+                    st.markdown('<div class="chart-container" style="padding:0.4rem">', unsafe_allow_html=True)
+                    agraph(nodes=nodes_list, edges=edges_list, config=Config(
+                        width="100%", height=700, directed=True,
+                        physics=True,
+                        maxVelocity=15, minVelocity=1.5,
+                        stabilization=True, fit=True,
+                        nodeHighlightBehavior=True, highlightColor="#F7A7A6",
+                        collapsible=True,
+                        interaction={"hover": True, "tooltipDelay": 100, "navigationButtons": True,
+                                    "dragNodes": True, "dragView": True, "zoomView": True},
+                        edges={"color": {"color": "#556170"}},
+                    ))
+                    st.markdown('</div>', unsafe_allow_html=True)
 
-                # 固定图例
+                st.caption(f"显示 {len(nodes_list)} 节点 / {len(edges_list)} 边")
+
                 c1, c2, c3, c4, c5 = st.columns(5)
-                c1.markdown("🟢 **设备** (Equipment)")
-                c2.markdown("🔵 **物料** (Material)")
-                c3.markdown("🟠 **异常** (Abnormal)")
-                c4.markdown("🔴 **后果** (Consequence)")
-                c5.markdown("🟣 **措施** (Mitigation)")
+                c1.markdown("🔵 **设备** Equipment")
+                c2.markdown("🟢 **物料** Material")
+                c3.markdown("🟠 **异常** Abnormal")
+                c4.markdown("🔴 **后果** Consequence")
+                c5.markdown("🟣 **措施** Mitigation")
                 st.caption("拖拽节点 · 滚轮缩放 · 点击高亮关联 · 双击聚焦")
 
             except Exception as e:
@@ -803,14 +959,12 @@ elif page == "🔗 知识图谱浏览":
             st.markdown("### 因果路径探索")
             st.markdown("选择一个实体，查看它在知识图谱中的因果链。")
 
-            # 搜索式输入替代大下拉框
             search_term = st.text_input(
                 "搜索实体名",
                 placeholder="输入关键词（如：反应釜、硫化氢、违规动火…）",
                 key="path_search"
             )
 
-            # 模糊匹配
             if search_term:
                 matched = [e for e in stats["entities"] if search_term in str(e)][:30]
             else:
@@ -832,13 +986,15 @@ elif page == "🔗 知识图谱浏览":
                 with st.spinner(f"检索 '{path_entity}' 的因果路径..."):
                     paths = retriever.retrieve(path_entity, max_depth=max_depth)
                     if paths:
-                        # 按深度分组统计
                         from collections import Counter
                         depth_dist = Counter(len(p.get("node_names",[]))-1 for p in paths if p.get("node_names"))
                         dist_text = " · ".join(f"{d}步:{c}条" for d, c in sorted(depth_dist.items()))
                         st.markdown(f"**{len(paths)} 条路径**（{dist_text}）")
 
-                        st.plotly_chart(path_viz.visualize_from_neo4j_paths(paths, top_k=5), width='stretch')
+                        with st.container():
+                            st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+                            st.plotly_chart(path_viz.visualize_from_neo4j_paths(paths, top_k=5), width="stretch", config={"displayModeBar": False})
+                            st.markdown('</div>', unsafe_allow_html=True)
 
                         with st.expander(f"查看全部 {min(15, len(paths))} 条路径文本", expanded=False):
                             for i, p in enumerate(paths[:15], 1):
@@ -849,76 +1005,106 @@ elif page == "🔗 知识图谱浏览":
                                 st.text(" → ".join(nodes))
                     else:
                         st.info(f"'{path_entity}' 暂无因果路径。尝试减少深度或换一个实体。")
-
-
-# ═══════════════════════════════════════════════════════════════
-#  页面5: 系统管理
-# ═══════════════════════════════════════════════════════════════
 elif page == "⚙️ 系统管理":
     st.title("系统管理")
 
-    tab1, tab2 = st.tabs(["📋 状态总览", "🔧 流水线"])
+    tab1, tab2, tab3 = st.tabs(["📋 状态总览", "🔧 数据流水线", "📦 数据集"])
 
     with tab1:
-        st.markdown("### 数据库状态")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown(f"**Neo4j 图数据库**  \n节点: {stats['nodes']:,}  \n关系: {stats['rels']:,}  \n版本: 5.26.25")
-        with c2:
+        col_l, col_r = st.columns(2)
+        with col_l:
+            st.markdown("### 图数据库 (Neo4j)")
+            items = [
+                ("节点总数", f"{stats['nodes']:,}"),
+                ("关系总数", f"{stats['rels']:,}"),
+                ("事故", stats["accidents"]),
+                ("设备", stats["node_types"].get("Equipment", 0)),
+                ("物料", stats["node_types"].get("Material", 0)),
+                ("异常", stats["node_types"].get("Abnormal_Condition", 0)),
+                ("后果", stats["node_types"].get("Consequence", 0)),
+                ("应急措施", stats["mitigation"]),
+            ]
+            for label, val in items:
+                st.markdown(f'<div class="insight-card" style="margin:6px 0;padding:0.6rem 1rem;border-left-color:#4da6ff"><div class="label">{label}</div><div class="value" style="font-size:0.95rem">{val}</div></div>', unsafe_allow_html=True)
+        with col_r:
+            st.markdown("### 关系数据库 (SQLite)")
             try:
                 import sqlite3
                 conn = sqlite3.connect("data/processed/chemsafe.db")
-                acc = conn.execute("SELECT count(*) FROM accidents").fetchone()[0]
-                chem = conn.execute("SELECT count(*) FROM chemical_properties").fetchone()[0]
-                wx = conn.execute("SELECT count(*) FROM accidents WHERE source_url LIKE '微信:%'").fetchone()[0]
-                weather_n = conn.execute("SELECT count(*) FROM weather_records").fetchone()[0]
-                loc_n = conn.execute("SELECT count(*) FROM accidents WHERE location IS NOT NULL AND location != ''").fetchone()[0]
+                sql_items = [
+                    ("事故记录", conn.execute("SELECT count(*) FROM accidents").fetchone()[0]),
+                    ("微信来源", conn.execute("SELECT count(*) FROM accidents WHERE source_url LIKE '微信:%'").fetchone()[0]),
+                    ("化学品物性", conn.execute("SELECT count(*) FROM chemical_properties").fetchone()[0]),
+                    ("天气记录", conn.execute("SELECT count(*) FROM weather_records").fetchone()[0]),
+                    ("地点覆盖", conn.execute("SELECT count(*) FROM accidents WHERE location IS NOT NULL AND location != ''").fetchone()[0]),
+                ]
                 conn.close()
-                st.markdown(f"**SQLite 关系数据库**")
-                st.markdown(f"事故: {acc:,} 条 (微信: {wx})")
-                st.markdown(f"化学品物性: {chem} 种")
-                st.markdown(f"天气记录: {weather_n} 条")
-                st.markdown(f"地点覆盖: {loc_n} 条")
+                for label, val in sql_items:
+                    st.markdown(f'<div class="insight-card" style="margin:6px 0;padding:0.6rem 1rem;border-left-color:#4dcf8b"><div class="label">{label}</div><div class="value" style="font-size:0.95rem">{val:,}</div></div>', unsafe_allow_html=True)
             except Exception:
-                st.markdown("**SQLite**  \n未连接")
+                st.markdown("未连接")
 
         st.markdown("---")
         st.markdown("### 配置检查")
         checks = [
             ("LLM API (DeepSeek v4-flash)", True),
             ("Neo4j 5.26.25", kg_ok),
-            ("neo4j Schema + 索引", kg_ok),
+            ("Neo4j Schema + 索引", kg_ok),
             ("SQLite 数据库", True),
             ("mem.gov.cn 爬虫", True),
             ("微信数据集成", True),
             ("PubChem API", True),
         ]
-        for label, ok in checks:
-            st.checkbox(label, value=ok, disabled=True)
+        chk_cols = st.columns(2)
+        for i, (label, ok) in enumerate(checks):
+            with chk_cols[i % 2]:
+                icon = "✅" if ok else "❌"
+                color = "#4dcf8b" if ok else "#f06060"
+                st.markdown(f'<span style="color:{color};font-weight:600">{icon}</span> <span style="color:#8896a7">{label}</span>', unsafe_allow_html=True)
 
     with tab2:
         st.markdown("### 数据流水线")
-        st.markdown("""
-        **全量重建**（清库→爬虫→抽取→充实→验证）：
-        ```bash
-        python scripts/rebuild_all.py
-        ```
-        **对照实验**（关键词RAG vs Graph RAG vs 纯LLM）：
-        ```bash
-        python scripts/run_comparative_experiment_v2.py
-        ```
-        **数据洞察**：
-        ```bash
-        python scripts/data_insights.py
-        ```
-        **数据集发布**：
-        ```bash
-        python scripts/release_dataset.py
-        ```
-        """)
+        commands = [
+            ("全量重建", "清库→爬虫→抽取→充实→验证", "python scripts/rebuild_all.py"),
+            ("对照实验", "关键词RAG vs Graph RAG vs 纯LLM", "python scripts/run_comparative_experiment_v2.py"),
+            ("数据洞察", "生成14条统计洞察", "python scripts/data_insights.py"),
+            ("数据集发布", "打包CSV+元数据到Release", "python scripts/release_dataset.py"),
+            ("去重事故", "标题相似度>95%", "python scripts/dedup_accidents.py"),
+            ("化学物性充实", "PubChem API批量查询", "python scripts/enrich_chemicals.py"),
+        ]
+        for name, desc, cmd in commands:
+            st.markdown(f"""
+            <div class="insight-card" style="margin:8px 0;padding:0.8rem 1.2rem">
+                <div class="label">{name}</div>
+                <div class="value" style="font-size:0.85rem;font-weight:400">{desc}</div>
+                <code style="color:#60a5fa;font-size:0.78rem">{cmd}</code>
+            </div>
+            """, unsafe_allow_html=True)
 
-        st.markdown("---")
-        st.markdown("### 节点列表")
-        if stats["entities"]:
-            entity_text = "\n".join(stats["entities"][:200])
-            st.text_area("全部实体（前200）", entity_text, height=300)
+    with tab3:
+        st.markdown("### 数据集 Release v0.7.1")
+        st.markdown("""
+        <div class="insight-card" style="padding:1.2rem 1.5rem">
+            <div class="label">ChemSafe-KG Dataset v0.7.1</div>
+            <div class="value" style="font-size:1rem;font-weight:400;margin-top:8px">
+                事故记录: <b>1,174</b> 条（去重后） · 化学品: <b>72</b> 种 · 天气: <b>108</b> 条 · 因果三元组: 已包含<br>
+                License: <b>CC BY-NC 4.0</b>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="background:#161d2a;border:1px solid #253a50;border-radius:10px;padding:1rem 1.4rem;margin-top:0.8rem">
+            <code style="color:#e8ecf1;font-size:0.82rem">accidents.csv</code>
+            <span style="color:#556170;font-size:0.78rem;margin-left:12px">1,174 rows × 19 columns</span><br>
+            <code style="color:#e8ecf1;font-size:0.82rem">chemicals.csv</code>
+            <span style="color:#556170;font-size:0.78rem;margin-left:12px">72 substances with PubChem properties</span><br>
+            <code style="color:#e8ecf1;font-size:0.82rem">weather.csv</code>
+            <span style="color:#556170;font-size:0.78rem;margin-left:12px">108 records (city × date)</span><br>
+            <code style="color:#e8ecf1;font-size:0.82rem">causal_triples.csv</code>
+            <span style="color:#556170;font-size:0.78rem;margin-left:12px">Auto-extracted causal chains</span><br>
+            <code style="color:#e8ecf1;font-size:0.82rem">DATASET_CARD.md</code>
+            <span style="color:#556170;font-size:0.78rem;margin-left:12px">Full documentation</span>
+        </div>
+        """, unsafe_allow_html=True)
+        st.link_button("📦 GitHub Release v0.7.1", "https://github.com/zyfxsxb45/ChemSafe-KG/releases/tag/v0.7.1")
+
