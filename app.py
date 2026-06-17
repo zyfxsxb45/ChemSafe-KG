@@ -78,7 +78,7 @@ st.markdown("""
         border: 1px solid var(--border);
         border-radius: 12px;
         padding: 1rem 1.2rem;
-        transition: all .25s ease;
+        
         box-shadow: 0 2px 8px rgba(0,0,0,.2);
     }
     div[data-testid="stMetric"]:hover {
@@ -108,7 +108,7 @@ st.markdown("""
         border: 1px solid var(--border) !important;
         border-radius: 8px !important;
         font-size: 0.92rem !important;
-        transition: all .2s ease;
+        transition: all .1s ease;
     }
     .stTextInput > div > div > input:focus,
     .stTextArea > div > div > textarea:focus {
@@ -128,7 +128,7 @@ st.markdown("""
         border: none;
         border-radius: 8px;
         padding: 0.55rem 1.6rem;
-        transition: all .25s ease;
+        
         box-shadow: 0 2px 8px rgba(59,130,246,.25);
     }
     .stButton > button:hover {
@@ -297,7 +297,7 @@ st.markdown("""
         border: 1px solid var(--border);
         border-radius: 12px;
         padding: 0.8rem;
-        transition: all .3s ease;
+        transition: all .15s ease;
     }
     .chart-container:hover {
         border-color: var(--border-active);
@@ -343,15 +343,19 @@ def _get_st_model():
     from sentence_transformers import SentenceTransformer
     return SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
 
-def _warm_embedder(entities):
-    """预热嵌入：加载模型 + 构建/加载嵌入向量"""
+@st.cache_resource
+def _warm_embedder_cached(_entities_tuple):
+    """缓存嵌入向量构建，entities 作为 tuple 参与 hash"""
     embedder = get_embedder()
     if not embedder._loaded:
         embedder.model = _get_st_model()
-        embedder.load_or_build(entities, force_rebuild=False)
+        embedder.load_or_build(list(_entities_tuple), force_rebuild=False)
     return embedder
 
-def get_graph_stats(neo4j):
+@st.cache_data(ttl=300)
+def get_graph_stats_cached(_dummy):
+    """缓存图谱统计"""
+    neo4j = get_neo4j()
     try:
         node_types = {}
         if neo4j.graph:
@@ -398,50 +402,63 @@ def process_question(question, neo4j, retriever, qa):
 
     l3_scored = []
     try:
-        embedder = _warm_embedder(entities)
+        embedder = _warm_embedder_cached(tuple(entities))
         results = embedder.find_similar_multi([question] + words, top_k=8, deduplicate=True)
         l3_scored = [(r["name"], r["score"]) for r in results]
     except Exception:
         pass
 
+    # 融合分数（跳过 Neo4j 逐个查询加速）
     fused = {}
     for name, conf in l1_matched: fused[name] = fused.get(name, 0) + conf * 3.0
     for name, hits in l2_scored: fused[name] = fused.get(name, 0) + hits * 1.0
     for name, sim in l3_scored: fused[name] = fused.get(name, 0) + sim * 3.0
 
-    if fused:
-        for name in list(fused.keys())[:30]:
-            try:
-                if neo4j.find_causal_paths(name, max_depth=1):
-                    fused[name] += 2.0
-            except Exception: pass
-
-    top_entities = sorted(fused.items(), key=lambda x: -x[1])[:12]
+    top_entities = sorted(fused.items(), key=lambda x: -x[1])[:8]
     top_names = [name for name, _ in top_entities]
     if not top_names: return "未在知识图谱中找到相关实体。", None, []
 
-    all_paths, seen = [], set()
-    for entity in top_names[:8]:
-        paths = retriever.retrieve(entity, max_depth=3)
+    all_paths, seen_keys = [], set()
+    for entity in top_names[:6]:
+        paths = retriever.retrieve(entity, max_depth=2)
         for p in paths:
             key = tuple(p.get("node_names", []))
-            if key not in seen and len(key) >= 2:
-                seen.add(key); all_paths.append(p)
+            if key not in seen_keys and len(key) >= 2:
+                seen_keys.add(key)
+                all_paths.append(p)
+
+    # 按长度降序 + 去子路径，优先保留长路径（信息量大）
     all_paths.sort(key=lambda x: len(x.get("node_names", [])), reverse=True)
 
     unique_paths = []
     for p in all_paths:
         p_nodes = p.get("node_names", [])
-        if not p_nodes: continue
-        if not any(
-            any(up_nodes[j:j+len(p_nodes)] == p_nodes
-                for j in range(len(up_nodes) - len(p_nodes) + 1))
-            for up in unique_paths
-            if len((up_nodes := up.get("node_names", []))) >= len(p_nodes)
-        ):
+        if not p_nodes:
+            continue
+        # 检查是否被已保留的更长路径包含
+        is_subpath = False
+        for up in unique_paths:
+            up_nodes = up.get("node_names", [])
+            if len(up_nodes) >= len(p_nodes):
+                # 检查 p 是否为 up 的连续子序列
+                if any(up_nodes[j:j+len(p_nodes)] == p_nodes
+                       for j in range(len(up_nodes) - len(p_nodes) + 1)):
+                    is_subpath = True
+                    break
+        if not is_subpath:
             unique_paths.append(p)
+        if len(unique_paths) >= 12:
+            break
 
-    context = retriever.format_context(unique_paths[:15])
+    # 按源头实体分组标记，帮助 LLM 理解不同分析视角
+    context_lines = [f"【知识图谱因果路径 — 共 {len(unique_paths)} 条】"]
+    for i, p in enumerate(unique_paths, 1):
+        nodes = p.get("node_names", [])
+        types = p.get("node_types", [])
+        type_tags = " → ".join(types[:5]) if types else ""
+        chain = " → ".join(nodes)
+        context_lines.append(f"[路径{i}] {chain}\n    ({type_tags})")
+    context = "\n\n".join(context_lines)
     answer = qa.generate(question, context)
     return answer, context, top_entities
 
@@ -458,7 +475,7 @@ with st.sidebar:
 
     try:
         neo4j = get_neo4j()
-        stats = get_graph_stats(neo4j)
+        stats = get_graph_stats_cached(0)
         kg_ok = stats["nodes"] > 0
     except Exception:
         kg_ok = False
@@ -604,40 +621,45 @@ elif page == "💬 因果推理问答":
 
         # 示例问题快捷入口
         st.caption("💡 试试这些提问，或输入你自己的问题")
-        examples = st.columns(4)
         example_questions = [
             "硫化氢中毒事故有什么共同特点？",
             "反应釜爆炸的主要原因是什么？",
             "怎样预防有限空间窒息事故？",
             "违规动火作业导致了哪些后果？",
         ]
-        q_input = st.text_area(
+
+        # 用 on_click 回调设置问题文本，避免 session_state 竞争
+        if "qa_text" not in st.session_state:
+            st.session_state.qa_text = ""
+
+        def set_question(q):
+            st.session_state.qa_text = q
+
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.button(example_questions[0], key="eg0", use_container_width=True,
+                      on_click=set_question, args=(example_questions[0],))
+        with c2:
+            st.button(example_questions[1], key="eg1", use_container_width=True,
+                      on_click=set_question, args=(example_questions[1],))
+        with c3:
+            st.button(example_questions[2], key="eg2", use_container_width=True,
+                      on_click=set_question, args=(example_questions[2],))
+        with c4:
+            st.button(example_questions[3], key="eg3", use_container_width=True,
+                      on_click=set_question, args=(example_questions[3],))
+
+        question = st.text_area(
             "你的问题",
             placeholder="输入化工安全相关问题...",
             height=68,
-            key="qa_input",
+            value=st.session_state.qa_text,
             label_visibility="collapsed",
         )
-        c1, c2, c3, c4 = examples
-        trigger = None
-        with c1:
-            if st.button(example_questions[0], key="eg0", use_container_width=True): trigger = example_questions[0]
-        with c2:
-            if st.button(example_questions[1], key="eg1", use_container_width=True): trigger = example_questions[1]
-        with c3:
-            if st.button(example_questions[2], key="eg2", use_container_width=True): trigger = example_questions[2]
-        with c4:
-            if st.button(example_questions[3], key="eg3", use_container_width=True): trigger = example_questions[3]
-
-        if trigger:
-            st.session_state.qa_input = trigger
-            st.rerun()
 
         col_q, col_b = st.columns([5, 1])
         with col_b:
             ask = st.button("🔍 检索回答", use_container_width=True, key="ask_btn")
-        with col_q:
-            question = q_input
 
         if ask and question.strip():
             with st.spinner("正在匹配实体并检索因果链..."):
